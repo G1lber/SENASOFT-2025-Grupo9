@@ -34,6 +34,11 @@ class MCPServer {
       description: 'Analyze data using Groq AI model',
       handler: this.analyzeWithGroq.bind(this)
     });
+
+    this.tools.set('analyze_investment_profile', {
+      description: 'Complete investment profile analysis combining user data and AI recommendations',
+      handler: this.analyzeInvestmentProfile.bind(this)
+    });
   }
 
   async getUserProfile(args) {
@@ -141,6 +146,120 @@ class MCPServer {
     } catch (error) {
       console.error('Groq API error:', error);
       throw new Error(`Groq API error: ${error.message}`);
+    }
+  }
+
+  async analyzeInvestmentProfile(args) {
+    const { userId, investmentAmount } = args;
+    
+    if (!userId) {
+      throw new Error('UserId is required for investment profile analysis');
+    }
+
+    try {
+      // Get user profile
+      const profileResult = await this.getUserProfile({ userId });
+      
+      if (!profileResult.success || !profileResult.data) {
+        return {
+          success: false,
+          message: 'User profile not found. Please complete your profile first.',
+          data: null
+        };
+      }
+
+      const profile = profileResult.data;
+      
+      // Get investment options based on user's risk tolerance and amount
+      const optionsResult = await this.getInvestmentOptions({
+        riskLevel: profile.risk_tolerance || 'medium',
+        amount: investmentAmount || 0
+      });
+
+      // Create context for AI analysis
+      const context = `
+        User Profile:
+        - Age: ${profile.age}
+        - Income: $${profile.income}
+        - Risk Tolerance: ${profile.risk_tolerance}
+        - Goals: ${profile.goals}
+        - Investment Amount: $${investmentAmount}
+        
+        Available Investment Options: ${JSON.stringify(optionsResult.data)}
+      `;
+
+      // Get AI analysis
+      const aiAnalysis = await this.analyzeWithGroq({
+        prompt: `Based on this user's profile and available investment options, provide specific investment recommendations. Consider their age, income, risk tolerance, and goals. Recommend specific allocations and explain the reasoning.`,
+        context: context
+      });
+
+      return {
+        success: true,
+        data: {
+          userProfile: profile,
+          investmentOptions: optionsResult.data,
+          aiRecommendations: aiAnalysis.data,
+          analysis: {
+            totalAmount: investmentAmount,
+            riskLevel: profile.risk_tolerance,
+            suitableOptions: optionsResult.data.length
+          }
+        },
+        message: 'Complete investment profile analysis completed successfully'
+      };
+
+    } catch (error) {
+      console.error('Error in analyzeInvestmentProfile:', error);
+      throw new Error(`Investment profile analysis error: ${error.message}`);
+    }
+  }
+
+  // Agent-compatible request processor
+  async processAgentRequest(request) {
+    const { action, payload, metadata } = request;
+    
+    if (!action) {
+      throw new Error('Action is required in agent request');
+    }
+
+    try {
+      // Map agent actions to tool names
+      const toolName = action;
+      
+      // Log the request for debugging
+      console.log(`🤖 Processing agent request: ${action}`);
+      console.log(`📋 Payload:`, payload);
+      
+      // Call the appropriate tool
+      const result = await this.callTool(toolName, payload || {});
+      
+      // Return agent-compatible response
+      return {
+        success: result.success,
+        data: result.data,
+        message: result.message,
+        error: result.error,
+        metadata: {
+          ...metadata,
+          processedAt: new Date().toISOString(),
+          action: action
+        }
+      };
+
+    } catch (error) {
+      console.error(`Agent request error for ${action}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        data: null,
+        metadata: {
+          ...metadata,
+          processedAt: new Date().toISOString(),
+          action: action,
+          errorType: 'ProcessingError'
+        }
+      };
     }
   }
 
