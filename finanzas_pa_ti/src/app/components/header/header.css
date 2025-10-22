@@ -1,4 +1,3 @@
-/* ===== Estilos generales ===== */
 .navbar {
   background-color: white;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -14,7 +13,6 @@
   height: 50px;
 }
 
-/* ===== Menú escritorio ===== */
 .nav-links {
   list-style: none;
   display: flex;
@@ -33,17 +31,15 @@
   color: #ff6600;
 }
 
-/* ===== Botón móvil ===== */
 .menu-btn {
   background: none;
   border: none;
   font-size: 26px;
   cursor: pointer;
   color: #333;
-  display: none; /* se oculta en pantallas grandes */
+  display: none;
 }
 
-/* ===== Menú móvil ===== */
 .mobile-menu {
   position: absolute;
   top: 60px;
@@ -77,13 +73,11 @@
   color: #ff6600;
 }
 
-/* ===== Animación ===== */
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ===== Responsivo ===== */
 @media (max-width: 768px) {
   .nav-links {
     display: none;

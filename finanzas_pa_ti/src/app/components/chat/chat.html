@@ -1,30 +1,74 @@
 <div class="container-fluid py-4 chat-container">
-  <div class="row justify-content-center">
-    <div class="col-md-10 col-lg-8 chat-box">
+  <div class="container text-center">
+    <div class="row justify-content-center g-4">
+      <h1>Asistente financiero interactivo</h1>
+      <h6 class="m-0">Andrès tu asesor financiero pesonalizo te espera</h6>
+        <h6 class="m-0"> Comienza tu camino a las inversiones</h6>
+      <!-- Columna lateral (bot info) -->
+      <div class="col-12 col-md-3">
+        <div class="chat-box p-3 shadow-sm rounded">
+          <div class="titulo-bot mb-2">
+            <h2 class="fw-bold">Dr. Andrés Bot</h2>
+          </div>
+          <div class="subtitulo mb-3">
+            <h5 class="text-primary">
+              Financiero digital especializado en inversiones
+            </h5>
+          </div>
 
-      <!-- Encabezado -->
-      <div class="chat-header d-flex align-items-center">
-        <img src="assets/bot.png" alt="Bot" class="bot-avatar me-3">
-        <div>
-          <h5 class="mb-0">Dr. Andrés Bot</h5>
-          <small class="text-success">En línea • Respuesta inmediata</small>
+          <div class="d-flex flex-column align-items-center">
+            <img
+              src="./assets/bot.gif"
+              alt="Cargando..."
+              class="img-fluid mb-2 rounded-circle"
+              style="max-width: 180px;"
+            />
+            <p class="text-success mb-0">🟢 En línea • Respuesta inmediata</p>
+          </div>
         </div>
       </div>
 
-      <!-- Cuerpo del chat -->
-      <div class="chat-body" id="chatScroll">
-        <div *ngFor="let msg of mensajes" class="mensaje" [ngClass]="msg.tipo">
-          <p>{{ msg.texto }}</p>
-        </div>
-      </div>
+      <!-- Columna principal (chat) -->
+      <div class="col-12 col-md-9">
+        <div class="chat-box p-3 shadow-sm rounded">
 
-      <!-- Caja de texto -->
-      <div class="chat-input d-flex mt-3">
-        <input type="text" [(ngModel)]="nuevoMensaje" (keyup.enter)="enviarMensaje()"
-               placeholder="Escribe tu mensaje..." class="form-control me-2">
-        <button class="btn btn-primary" (click)="enviarMensaje()">
-          <i class="bi bi-send"></i>
-        </button>
+          <!-- Encabezado -->
+          <div class="chat-header d-flex align-items-center border-bottom pb-2 mb-3">
+            <img
+              src="assets/andres.png"
+              alt="Bot"
+              class="bot-avatar me-3 rounded-circle"
+              style="width: 60px; height: 60px; object-fit: cover;"
+            />
+            <div class="text-start">
+              <h5 class="mb-0">Dr. Andrés Bot</h5>
+              <small class="text-success">En línea • Respuesta inmediata</small>
+            </div>
+          </div>
+
+          <!-- Cuerpo del chat -->
+          <div class="chat-body" id="chatScroll"
+               style="height: 400px; overflow-y: auto; background: #f9f9f9; border-radius: 10px; padding: 15px;">
+            <div *ngFor="let msg of mensajes"
+                 class="mensaje mb-2 p-2 rounded"
+                 [ngClass]="msg.tipo">
+              <p class="mb-0">{{ msg.texto }}</p>
+            </div>
+          </div>
+
+          <!-- Caja de texto -->
+          <div class="chat-input d-flex mt-3">
+            <input type="text"
+                   [(ngModel)]="nuevoMensaje"
+                   (keyup.enter)="enviarMensaje()"
+                   placeholder="Escribe tu mensaje..."
+                   class="form-control me-2 rounded-pill">
+            <button class="btn btn-primary rounded-pill" (click)="enviarMensaje()">
+              <i class="bi bi-send"></i>
+            </button>
+          </div>
+
+        </div>
       </div>
 
     </div>

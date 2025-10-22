@@ -42,8 +42,7 @@ export class Chat implements OnInit {
     setTimeout(() => {
       this.mensajes.push({
         tipo: 'bot',
-        texto: 'Gracias por tu mensaje, estoy procesando tu solicitud 🤖 hola ' +
-          'akakakakaka'
+        texto: 'Gracias por tu mensaje, estoy procesando tu solicitud 🤖 hola '
       });
     }, 1000);
 
