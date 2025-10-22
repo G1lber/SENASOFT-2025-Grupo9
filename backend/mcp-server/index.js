@@ -65,9 +65,32 @@ class MCPServer {
     return age;
   }
 
+  async getUserObjectives(args) {
+    const { userId } = args;
+    if (!userId) throw new Error('userId is required');
+
+    try {
+      const [rows] = await pool.execute(
+        `SELECT id_objetivo, descripcion, tipo_objetivo, prioridad, monto_estimado_cop, horizonte_meses
+       FROM objetivos
+       WHERE id_usuario = ?`,
+        [userId]
+      );
+
+      return {
+        success: true,
+        data: rows,
+        message: `Found ${rows.length} objectives for user ${userId}`
+      };
+    } catch (error) {
+      console.error('Database error in getUserObjectives:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
   async getUserProfile(args) {
     const { userId } = args;
-    
+
     if (!userId) {
       throw new Error('UserId is required');
     }
@@ -137,7 +160,7 @@ class MCPServer {
 
   async saveUserProfile(args) {
     const { userId, age, income, riskTolerance, goals, nombres, apellidos, email } = args;
-    
+
     if (!userId) {
       throw new Error('UserId is required');
     }
@@ -219,7 +242,7 @@ class MCPServer {
 
   async getInvestmentOptions(args) {
     const { riskLevel = 'medium', amount = 0 } = args;
-    
+
     try {
       // Intento en tabla legacy
       try {
@@ -337,7 +360,7 @@ class MCPServer {
   // Ajuste: analyzeWithGroq ahora admite userProfile y lo incluye en el contexto
   async analyzeWithGroq(args) {
     const { prompt, context = '', userProfile } = args || {};
-    
+
     if (!prompt) {
       throw new Error('Prompt is required for Groq analysis');
     }
@@ -377,7 +400,7 @@ class MCPServer {
 
   async analyzeInvestmentProfile(args) {
     const { userId, investmentAmount } = args;
-    
+
     if (!userId) {
       throw new Error('UserId is required for investment profile analysis');
     }
@@ -385,7 +408,7 @@ class MCPServer {
     try {
       // Get user profile
       const profileResult = await this.getUserProfile({ userId });
-      
+
       if (!profileResult.success || !profileResult.data) {
         return {
           success: false,
@@ -395,7 +418,7 @@ class MCPServer {
       }
 
       const profile = profileResult.data;
-      
+
       // Get investment options based on user's risk tolerance and amount
       const optionsResult = await this.getInvestmentOptions({
         riskLevel: profile.risk_tolerance || 'medium',
@@ -444,7 +467,7 @@ class MCPServer {
   // Agent-compatible request processor
   async processAgentRequest(request) {
     const { action, payload = {}, metadata } = request;
-    
+
     if (!action) {
       throw new Error('Action is required in agent request');
     }
@@ -487,7 +510,7 @@ class MCPServer {
 
   async callTool(toolName, args) {
     const tool = this.tools.get(toolName);
-    
+
     if (!tool) {
       throw new Error(`Unknown tool: ${toolName}`);
     }
@@ -515,9 +538,9 @@ class MCPServer {
 // Test function to verify the server works
 async function testServer() {
   const server = new MCPServer();
-  
+
   console.log('🧪 Testing MCP Server...');
-  
+
   // Test database connection
   try {
     const connection = await pool.getConnection();
@@ -531,7 +554,7 @@ async function testServer() {
   // Test Groq API
   if (process.env.GROQ_API_KEY) {
     console.log('✅ Groq API key configured');
-    
+
     // Test Groq connection
     try {
       const testResult = await server.callTool('analyze_with_groq', {
@@ -549,7 +572,7 @@ async function testServer() {
   // List available tools
   const tools = server.listTools();
   console.log('🔧 Available tools:', tools.map(t => t.name).join(', '));
-  
+
   console.log('🚀 MCP Server is ready to use!');
   return server;
 }
@@ -563,17 +586,17 @@ async function createMCPServer() {
 async function main() {
   try {
     const server = await testServer();
-    
+
     // Keep the process running
     console.log('🎯 MCP Server running... Press Ctrl+C to stop');
-    
+
     // Example usage
     setInterval(async () => {
       // This keeps the server alive and shows it's working
       const tools = server.listTools();
       console.log(`💓 Server heartbeat - ${tools.length} tools available`);
     }, 30000); // Every 30 seconds
-    
+
   } catch (error) {
     console.error('❌ Failed to start MCP server:', error.message);
     process.exit(1);
