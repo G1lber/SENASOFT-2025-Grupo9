@@ -77,9 +77,7 @@ class MCPServer {
 
     try {
       const [rows] = await pool.execute(
-        `SELECT id_objetivo, descripcion, tipo_objetivo, prioridad, monto_estimado_cop, horizonte_meses
-       FROM objetivos
-       WHERE id_usuario = ?`,
+        `SELECT * FROM objetivos WHERE id_usuario = ?`,
         [userId]
       );
 
