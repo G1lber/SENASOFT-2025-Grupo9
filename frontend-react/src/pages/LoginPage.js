@@ -1,90 +1,92 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../../services/authService';
-import { useAuth } from '../../context/AuthContext';
-import './Login.css';
+import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
+import '../styles/LoginPage.css';
 
-const Login = () => {
+const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [cedula, setCedula] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const { updateUser } = useAuth();
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
+    
+    if (!email || !cedula) {
+      setError('Por favor ingrese email y cédula');
+      return;
+    }
+    
     try {
-      const response = await login(email, cedula);
+      setLoading(true);
+      setError('');
       
-      if (response.success) {
-        setSuccess('¡Login exitoso! Redirigiendo...');
-        updateUser(response.user);
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1500);
+      const response = await api.login(email, cedula);
+      
+      if (response.success && response.user) {
+        // Guardar información del usuario en el contexto
+        login(response.user);
+        navigate('/chat');
+      } else {
+        setError('Credenciales incorrectas');
       }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
-      console.error('Login error:', err);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Error en el servidor');
     } finally {
       setLoading(false);
     }
   };
-
+  
   return (
     <div className="login-container">
       <div className="login-card">
         <h2>🏦 Finanzas Pa' Ti</h2>
         <p className="subtitle">Asesor Financiero Inteligente</p>
         
-        {error && <div className="error-message">❌ {error}</div>}
-        {success && <div className="success-message">✅ {success}</div>}
+        {error && <div className="error-message">{error}</div>}
         
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
+          <div className="input-group">
             <label htmlFor="email">📧 Email</label>
             <input
               type="email"
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="usuario@ejemplo.com"
               required
-              placeholder="correo@ejemplo.com"
             />
           </div>
-
-          <div className="form-group">
+          
+          <div className="input-group">
             <label htmlFor="cedula">🆔 Cédula</label>
             <input
               type="text"
               id="cedula"
               value={cedula}
               onChange={(e) => setCedula(e.target.value)}
+              placeholder="Número de documento"
               required
-              placeholder="1234567890"
             />
           </div>
-
-          <button type="submit" disabled={loading}>
-            {loading ? '⏳ Iniciando...' : '🚀 Iniciar Sesión'}
+          
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
-
+        
         <div className="demo-credentials">
           <p><strong>Credenciales de prueba:</strong></p>
-          <p>📧 Email: santiago.torres52@gmail.com</p>
-          <p>🆔 Cédula: 71070189</p>
+          <p>Email: santiago.torres52@gmail.com</p>
+          <p>Cédula: 71070189</p>
         </div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default LoginPage;

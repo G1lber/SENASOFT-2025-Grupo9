@@ -1,15 +1,18 @@
 const { pool } = require('../src/config/database.js');
-const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 require('dotenv').config();
 
-// Initialize AWS Bedrock client
-const bedrockClient = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-  }
-});
+// Initialize Groq API configuration
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+if (!GROQ_API_KEY) {
+  console.error('❌ GROQ_API_KEY not found in environment variables');
+  console.log('⚠️ Will use fallback responses instead');
+} else {
+  console.log('✅ Groq API configured');
+  console.log(`🤖 Model: ${GROQ_MODEL}`);
+}
 
 // Simple MCP-like server implementation
 class MCPServer {
@@ -19,50 +22,48 @@ class MCPServer {
   }
 
   setupTools() {
+    // Using arrow functions to preserve 'this' context
     this.tools.set('get_user_profile', {
       description: 'Retrieve user profile from database',
-      handler: this.getUserProfile.bind(this)
+      handler: (args) => this.getUserProfile(args)
     });
 
     this.tools.set('save_user_profile', {
       description: 'Save user profile to database',
-      handler: this.saveUserProfile.bind(this)
+      handler: (args) => this.saveUserProfile(args)
     });
 
     this.tools.set('get_investment_options', {
       description: 'Get investment options based on user profile',
-      handler: this.getInvestmentOptions.bind(this)
+      handler: (args) => this.getInvestmentOptions(args)
     });
 
     this.tools.set('analyze_with_groq', {
-      description: 'Analyze data using Groq AI model',
-      handler: this.analyzeWithGroq.bind(this)
+      description: 'Analyze data using AI model',
+      handler: (args) => this.analyzeWithGroq(args)
     });
 
     this.tools.set('analyze_investment_profile', {
-      description: 'Complete investment profile analysis combining user data and AI recommendations',
-      handler: this.analyzeInvestmentProfile.bind(this)
+      description: 'Complete investment profile analysis',
+      handler: (args) => this.analyzeInvestmentProfile(args)
     });
 
     this.tools.set('get_user_objectives', {
       description: 'Retrieve user objectives from database',
-      handler: this.getUserObjectives.bind(this)
+      handler: (args) => this.getUserObjectives(args)
     });
 
-
-    // --- Nuevas herramientas para verificación de esquema y uso desde test-sistema.js
     this.tools.set('check_table_exists', {
       description: 'Check if a database table exists',
-      handler: this.checkTableExists.bind(this)
+      handler: (args) => this.checkTableExists(args)
     });
 
     this.tools.set('get_database_schema', {
-      description: 'List database tables (information_schema)',
-      handler: this.getDatabaseSchema.bind(this)
+      description: 'List database tables',
+      handler: () => this.getDatabaseSchema()
     });
   }
 
-  // Helper para calcular edad desde fecha de nacimiento
   calculateAge(birthDate) {
     if (!birthDate) return null;
     const today = new Date();
@@ -81,8 +82,7 @@ class MCPServer {
 
     try {
       const [rows] = await pool.execute(
-        `SELECT * FROM objetivos WHERE id_usuario = ?;
-`,
+        'SELECT * FROM objetivos WHERE id_usuario = ?',
         [userId]
       );
 
@@ -104,11 +104,10 @@ class MCPServer {
       throw new Error('UserId is required');
     }
 
-    // Primero intentar tabla legacy user_profiles, si falla -> fallback a usuarios (DDL)
     try {
       try {
         const [rows] = await pool.execute(
-          'SELECT * FROM user_profiles WHERE user_id = ?',
+          'SELECT * FROM usuarios WHERE id_usuario = ?',
           [userId]
         );
         if (rows && rows.length > 0) {
@@ -116,16 +115,13 @@ class MCPServer {
             success: true,
             data: rows[0],
             message: 'User profile found (legacy table)',
-            tableUsed: 'user_profiles'
+            tableUsed: 'usuarios'
           };
         }
-        // Si no hay filas, no lanzar error; intentar tabla DDL abajo
       } catch (legacyErr) {
-        // Si la tabla no existe o error, lo registramos y continuamos con DDL
         console.log('Legacy user_profiles query failed, trying DDL table usuarios...', legacyErr.message);
       }
 
-      // Intento con tabla DDL usuarios
       const [rowsDDL] = await pool.execute(
         'SELECT * FROM usuarios WHERE id_usuario = ?',
         [userId]
@@ -175,35 +171,10 @@ class MCPServer {
     }
 
     try {
-      try {
-        // Intento en tabla legacy
-        await pool.execute(`
-          INSERT INTO user_profiles (user_id, age, income, risk_tolerance, goals, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-          ON DUPLICATE KEY UPDATE
-          age = VALUES(age),
-          income = VALUES(income),
-          risk_tolerance = VALUES(risk_tolerance),
-          goals = VALUES(goals),
-          updated_at = NOW()
-        `, [userId, age || null, income || null, riskTolerance || null, goals || null]);
-
-        return {
-          success: true,
-          message: 'Profile saved successfully (legacy table)',
-          tableUsed: 'user_profiles'
-        };
-      } catch (legacyErr) {
-        // Si falla (tabla inexistente), intentar guardar en tabla DDL usuarios (simplificado)
-        console.log('Legacy user_profiles save failed, trying to save into usuarios (DDL)...', legacyErr.message);
-      }
-
-      // Para insertar en usuarios necesitamos al menos nombres/apellidos/email; si no están, devolver error claro
       if (!nombres || !apellidos || !email) {
-        throw new Error('To save into DDL table "usuarios" provide nombres, apellidos and email');
+        throw new Error('To save provide nombres, apellidos and email');
       }
 
-      // Fecha de nacimiento aproximada a partir de age (si se proporciona)
       const fechaNacimiento = age ? new Date(new Date().getFullYear() - age, 0, 1) : new Date('1990-01-01');
 
       await pool.execute(`
@@ -219,27 +190,14 @@ class MCPServer {
           nivel_conocimiento = VALUES(nivel_conocimiento),
           ingresos_mensuales_cop = VALUES(ingresos_mensuales_cop)
       `, [
-        userId,
-        nombres,
-        apellidos,
-        `CC${userId}`,
-        fechaNacimiento,
-        'M',
-        'Ciudad por defecto',
-        'Departamento por defecto',
-        'Dirección por defecto',
-        email,
-        '3000000000',
-        riskTolerance || 'Principiante',
-        3,
-        income || 0,
-        'S',
-        'N'
+        userId, nombres, apellidos, `CC${userId}`, fechaNacimiento, 'M',
+        'Ciudad por defecto', 'Departamento por defecto', 'Dirección por defecto',
+        email, '3000000000', riskTolerance || 'Principiante', 3, income || 0, 'S', 'N'
       ]);
 
       return {
         success: true,
-        message: 'Profile saved successfully (DDL usuarios)',
+        message: 'Profile saved successfully',
         tableUsed: 'usuarios'
       };
 
@@ -253,25 +211,6 @@ class MCPServer {
     const { riskLevel = 'medium', amount = 0 } = args;
 
     try {
-      // Intento en tabla legacy
-      try {
-        const [rows] = await pool.execute(
-          'SELECT * FROM investment_options WHERE risk_level = ? AND min_amount <= ? LIMIT 10',
-          [riskLevel, amount]
-        );
-        if (rows && rows.length > 0) {
-          return {
-            success: true,
-            data: rows,
-            message: `Found ${rows.length} investment options (legacy)`,
-            tableUsed: 'investment_options'
-          };
-        }
-      } catch (legacyErr) {
-        console.log('Legacy investment_options query failed, trying DDL instrumentos_financieros...', legacyErr.message);
-      }
-
-      // Fallback a instrumentos_financieros (DDL)
       const [rowsDDL] = await pool.execute(
         'SELECT * FROM instrumentos_financieros WHERE min_inversion_cop <= ? LIMIT 10',
         [amount]
@@ -293,7 +232,7 @@ class MCPServer {
       return {
         success: true,
         data: mapped,
-        message: `Found ${mapped.length} investment options (DDL instrumentos_financieros)`,
+        message: `Found ${mapped.length} investment options`,
         tableUsed: 'instrumentos_financieros'
       };
 
@@ -303,7 +242,6 @@ class MCPServer {
     }
   }
 
-  // Nuevo: verifica existencia de tabla en la BD (information_schema)
   async checkTableExists(args) {
     const { tableName } = args || {};
     if (!tableName) {
@@ -330,7 +268,6 @@ class MCPServer {
     }
   }
 
-  // Nuevo: devuelve listado básico de tablas del esquema actual
   async getDatabaseSchema() {
     try {
       const [rows] = await pool.execute(
@@ -350,7 +287,6 @@ class MCPServer {
     }
   }
 
-  // Nuevo helper: si payload contiene userId, adjunta userProfile si está disponible
   async ensureUserProfileInArgs(args = {}) {
     if (!args.userId) return args;
     if (args.userProfile) return args;
@@ -361,12 +297,10 @@ class MCPServer {
       }
       return args;
     } catch (err) {
-      // Propagar para que el llamador lo capture si es necesario
       throw err;
     }
   }
 
-  // Ajuste: analyzeWithGroq ahora usa AWS Bedrock con Llama 3 70B
   async analyzeWithGroq(args) {
     const { prompt, context = '', userProfile } = args || {};
     
@@ -374,13 +308,16 @@ class MCPServer {
       throw new Error('Prompt is required for analysis');
     }
 
-    // Si existe userProfile, lo agregamos al contexto automáticamente
     const fullContext = userProfile
       ? `${context}\n\nPerfil del Usuario:\n${JSON.stringify(userProfile, null, 2)}`
       : context;
 
+    if (!GROQ_API_KEY) {
+      console.log('⚠️ Groq API key not available, using fallback response');
+      return this.generateFallbackResponse(prompt, fullContext, userProfile);
+    }
+
     try {
-      // Construir el mensaje para Llama 3
       const systemPrompt = `Eres un asesor financiero experto en el mercado colombiano. 
 Proporciona consejos claros y útiles sobre inversiones en español.
 Considera pesos colombianos (COP), instrumentos de inversión locales y regulaciones financieras colombianas.
@@ -388,41 +325,94 @@ Adapta tus respuestas al perfil específico del usuario (edad, ingresos, toleran
       
       const userMessage = `${prompt}\n\nContexto: ${fullContext}`;
       
-      const fullPrompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-${systemPrompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
-
-      // Invocar modelo Llama 3 70B en AWS Bedrock
-      const input = {
-        modelId: process.env.AWS_BEDROCK_MODEL || 'meta.llama3-70b-instruct-v1:0',
-        contentType: 'application/json',
-        accept: 'application/json',
+      const response = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
-          prompt: fullPrompt,
-          max_gen_len: 2048,
+          model: GROQ_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
           temperature: 0.7,
+          max_tokens: 2048,
           top_p: 0.9
         })
-      };
+      });
 
-      const command = new InvokeModelCommand(input);
-      const response = await bedrockClient.send(command);
-      
-      // Parsear respuesta de Bedrock
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-      const generatedText = responseBody.generation || responseBody.results?.[0]?.outputText || 'No se pudo generar respuesta';
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      const generatedText = data.choices?.[0]?.message?.content || 'No se pudo generar respuesta';
 
       return {
         success: true,
         data: generatedText.trim(),
-        message: 'Analysis completed successfully with AWS Bedrock Llama 3 70B'
+        message: 'Analysis completed successfully with Groq AI'
       };
     } catch (error) {
-      console.error('AWS Bedrock error:', error);
-      throw new Error(`AWS Bedrock error: ${error.message}`);
+      console.error('Groq API error:', error);
+      console.log('⚠️ Using fallback response generator');
+      return this.generateFallbackResponse(prompt, fullContext, userProfile);
     }
+  }
+
+  generateFallbackResponse(prompt, context, userProfile) {
+    console.log('📝 Generando respuesta simulada con datos locales');
+    
+    let edad = 30;
+    let ingresos = 2000000;
+    let riesgo = "básico";
+    let ciudad = "Bogotá";
+    
+    if (userProfile) {
+      edad = userProfile.age || 30;
+      ingresos = userProfile.income || 2000000;
+      riesgo = userProfile.risk_tolerance || "básico";
+      ciudad = userProfile.ciudad || "Bogotá";
+    }
+
+    const respuestas = {
+      inversion_general: `Basado en tu perfil (${edad} años, $${ingresos.toLocaleString()} COP/mes, riesgo ${riesgo}):
+
+1. CDT (60%): Rendimiento 8-11% anual, bajo riesgo
+2. Fondos conservadores (30%): Balance renta fija/variable
+3. Ahorro de alta rentabilidad (10%): Liquidez para emergencias`,
+
+      ahorro: `Para ${ciudad} con $${ingresos.toLocaleString()} COP/mes:
+
+1. Fondo emergencia: 3-6 meses de gastos
+2. Ahorro automático: 20% de ingresos
+3. Podrías acumular $${(ingresos * 0.2 * 12).toLocaleString()} COP/año`,
+
+      analisis: `Perfil: ${edad} años, $${ingresos.toLocaleString()} COP, riesgo ${riesgo}
+
+Recomendación: Inversiones seguras como CDTs y fondos conservadores`
+    };
+
+    const promptLower = prompt.toLowerCase();
+    let respuesta;
+    
+    if (promptLower.includes("invert") || promptLower.includes("recomend")) {
+      respuesta = respuestas.inversion_general;
+    } else if (promptLower.includes("ahorr")) {
+      respuesta = respuestas.ahorro;
+    } else {
+      respuesta = respuestas.analisis;
+    }
+
+    return {
+      success: true,
+      data: respuesta,
+      message: 'Analysis completed with fallback response',
+      usingFallback: true
+    };
   }
 
   async analyzeInvestmentProfile(args) {
@@ -433,7 +423,6 @@ ${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
     }
 
     try {
-      // Get user profile
       const profileResult = await this.getUserProfile({ userId });
 
       if (!profileResult.success || !profileResult.data) {
@@ -446,27 +435,23 @@ ${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
 
       const profile = profileResult.data;
 
-      // Get investment options based on user's risk tolerance and amount
       const optionsResult = await this.getInvestmentOptions({
         riskLevel: profile.risk_tolerance || 'medium',
         amount: investmentAmount || 0
       });
 
-      // Create context for AI analysis
       const context = `
         User Profile:
         - Age: ${profile.age}
         - Income: $${profile.income}
         - Risk Tolerance: ${profile.risk_tolerance}
-        - Goals: ${profile.goals}
         - Investment Amount: $${investmentAmount}
         
         Available Investment Options: ${JSON.stringify(optionsResult.data)}
       `;
 
-      // Get AI analysis
       const aiAnalysis = await this.analyzeWithGroq({
-        prompt: `Based on this user's profile and available investment options, provide specific investment recommendations. Consider their age, income, risk tolerance, and goals. Recommend specific allocations and explain the reasoning.`,
+        prompt: `Based on this user's profile and available investment options, provide specific investment recommendations.`,
         context: context
       });
 
@@ -491,7 +476,6 @@ ${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
     }
   }
 
-  // Agent-compatible request processor
   async processAgentRequest(request) {
     const { action, payload = {}, metadata } = request;
 
@@ -501,11 +485,7 @@ ${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
 
     try {
       console.log(`🤖 Processing agent request: ${action}`);
-      console.log(`📋 Payload:`, payload);
-
-      // Intentar enriquecer con perfil de usuario si aplica
       const enrichedPayload = await this.ensureUserProfileInArgs(payload);
-
       const result = await this.callTool(action, enrichedPayload || {});
 
       return {
@@ -566,7 +546,7 @@ ${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
 async function testServer() {
   const server = new MCPServer();
   
-  console.log('🧪 Testing MCP Server with AWS Bedrock...');
+  console.log('🧪 Testing MCP Server...');
   
   // Test database connection
   try {
@@ -578,33 +558,35 @@ async function testServer() {
     return;
   }
 
-  // Test AWS Bedrock
-  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-    console.log('✅ AWS Bedrock credentials configured');
-    console.log(`📍 Region: ${process.env.AWS_REGION || 'us-east-1'}`);
-    console.log(`🤖 Model: ${process.env.AWS_BEDROCK_MODEL || 'meta.llama3-70b-instruct-v1:0'}`);
+  // Test Groq API
+  if (GROQ_API_KEY) {
+    console.log('✅ Groq API key configured');
+    console.log(`🤖 Model: ${GROQ_MODEL}`);
     
-    // Test AWS Bedrock connection
+    // Test Groq connection
     try {
       const testResult = await server.callTool('analyze_with_groq', {
         prompt: 'Responde en una línea: ¿Qué es una inversión?',
-        context: 'Test de conexión con AWS Bedrock'
+        context: 'Test de conexión con Groq'
       });
-      console.log('✅ AWS Bedrock Llama 3 70B connection successful');
+      if (testResult.usingFallback) {
+        console.log('⚠️ Groq API test using fallback response');
+      } else {
+        console.log('✅ Groq API connection successful');
+      }
       console.log('📝 Test response:', testResult.data.substring(0, 150) + '...');
     } catch (error) {
-      console.error('❌ AWS Bedrock test failed:', error.message);
-      console.error('💡 Verifica que el modelo esté habilitado en tu cuenta de AWS Bedrock');
+      console.error('❌ Groq API test failed:', error.message);
     }
   } else {
-    console.log('⚠️  AWS Bedrock credentials not configured');
+    console.log('⚠️ Groq API key not available - will use fallback responses');
   }
 
   // List available tools
   const tools = server.listTools();
   console.log('🔧 Available tools:', tools.map(t => t.name).join(', '));
   
-  console.log('🚀 MCP Server is ready to use with AWS Bedrock Llama 3 70B!');
+  console.log('🚀 MCP Server is ready!');
   return server;
 }
 
