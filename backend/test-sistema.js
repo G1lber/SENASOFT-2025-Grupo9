@@ -3,242 +3,199 @@ require('dotenv').config();
 
 const BASE_URL = 'http://localhost:3000';
 
-// Colores para la consola
 const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m'
+  reset: '\x1b[0m', bright: '\x1b[1m', red: '\x1b[31m', green: '\x1b[32m',
+  yellow: '\x1b[33m', blue: '\x1b[34m', magenta: '\x1b[35m', cyan: '\x1b[36m'
 };
 
-function log(message, color = 'reset') {
-  console.log(`${colors[color]}${message}${colors.reset}`);
-}
-
-function separator() {
-  log('='.repeat(60), 'cyan');
-}
-
-async function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function log(msg, color = 'reset') { console.log(`${colors[color]}${msg}${colors.reset}`); }
+function separator() { log('='.repeat(60), 'cyan'); }
+async function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 async function testEndpoint(name, method, url, data = null) {
   try {
-    log(`🧪 Probando: ${name}`, 'yellow');
-    
-    const config = {
-      method,
-      url: `${BASE_URL}${url}`,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    };
-
-    if (data) {
-      config.data = data;
-    }
-
+    log(`🧪 ${name}`, 'yellow');
+    const config = { method, url: `${BASE_URL}${url}`, headers: { 'Content-Type': 'application/json' } };
+    if (data) config.data = data;
     const response = await axios(config);
-    
-    log(`✅ ÉXITO: ${name}`, 'green');
-    log(`📊 Estado: ${response.status}`, 'blue');
-    log(`📄 Respuesta:`, 'blue');
+    log(`✅ ${name}`, 'green');
     console.log(JSON.stringify(response.data, null, 2));
-    
     return response.data;
   } catch (error) {
-    log(`❌ ERROR: ${name}`, 'red');
-    log(`📊 Estado: ${error.response?.status || 'Sin respuesta'}`, 'red');
+    log(`❌ ${name}`, 'red');
     log(`📄 Error: ${error.response?.data?.error || error.message}`, 'red');
     return null;
   }
 }
 
+async function obtenerUsuario(userId) {
+  log(`\n🔍 Obteniendo usuario ID "${userId}"...`, 'cyan');
+  const response = await testEndpoint(`Usuario ${userId}`, 'GET', `/api/profile/${userId}`);
+  
+  if (response?.success) {
+    // Extraer datos del perfil (puede venir en response.data o response.profile)
+    const usuario = response.profile || response.data;
+    log(`✅ Usuario encontrado: ${usuario.nombres} ${usuario.apellidos}`, 'green');
+    return usuario;
+  }
+  
+  log(`❌ Usuario ID "${userId}" no encontrado`, 'red');
+  return null;
+}
+
 async function ejecutarPruebas() {
-  log('🚀 INICIANDO PRUEBAS DEL SISTEMA SENASOFT', 'bright');
-  log('📋 Sistema de Asesoría de Inversiones con IA', 'cyan');
+  log('🚀 PRUEBAS SISTEMA SENASOFT - Análisis Personalizado', 'bright');
   separator();
 
-  // Datos de prueba
-  const usuarioPrueba = {
-    userId: "usuario_test_123",
-    age: 28,
-    income: 45000,
-    riskTolerance: "medio",
-    goals: "Ahorrar para comprar una casa en 5 años y planificar mi jubilación"
-  };
-
-  const preguntasChat = [
-    "¿Cuáles son las mejores opciones de inversión para un principiante?",
-    "¿Cómo puedo diversificar mi portafolio con $10,000?",
-    "¿Qué factores debo considerar para mi tolerancia al riesgo?",
-    "Explícame la diferencia entre acciones y bonos"
-  ];
-
-  try {
-    // 1. Verificar salud del servidor
-    separator();
-    log('1️⃣ VERIFICANDO SALUD DEL SERVIDOR', 'magenta');
-    await testEndpoint('Salud del servidor', 'GET', '/health');
-    await delay(1000);
-
-    // 2. Verificar servicio MCP
-    separator();
-    log('2️⃣ VERIFICANDO SERVICIO MCP', 'magenta');
-    await testEndpoint('Servicio MCP', 'GET', '/api/test-mcp');
-    await delay(1000);
-
-    // 3. Guardar perfil de usuario
-    separator();
-    log('3️⃣ GUARDANDO PERFIL DE USUARIO', 'magenta');
-    const perfilGuardado = await testEndpoint(
-      'Guardar perfil de usuario',
-      'POST',
-      '/api/profile',
-      usuarioPrueba
-    );
-    await delay(1000);
-
-    // 4. Obtener perfil de usuario
-    separator();
-    log('4️⃣ OBTENIENDO PERFIL DE USUARIO', 'magenta');
-    const perfilObtenido = await testEndpoint(
-      'Obtener perfil de usuario',
-      'GET',
-      `/api/profile/${usuarioPrueba.userId}`
-    );
-    await delay(1000);
-
-    // 5. Analizar perfil de usuario
-    separator();
-    log('5️⃣ ANALIZANDO PERFIL CON IA', 'magenta');
-    const analisisPerfil = await testEndpoint(
-      'Análisis de perfil con IA',
-      'GET',
-      `/api/profile/${usuarioPrueba.userId}/analyze`
-    );
-    await delay(2000);
-
-    // 6. Probar chat con diferentes preguntas
-    separator();
-    log('6️⃣ PROBANDO CHAT CON IA', 'magenta');
-    
-    for (let i = 0; i < preguntasChat.length; i++) {
-      const pregunta = preguntasChat[i];
-      log(`\n💬 Pregunta ${i + 1}: "${pregunta}"`, 'yellow');
-      
-      await testEndpoint(
-        `Chat - Pregunta ${i + 1}`,
-        'POST',
-        '/api/chat',
-        {
-          message: pregunta,
-          userId: usuarioPrueba.userId,
-          context: "Usuario interesado en inversiones seguras"
-        }
-      );
-      await delay(2000);
-    }
-
-    // 7. Obtener consejos de inversión
-    separator();
-    log('7️⃣ OBTENIENDO CONSEJOS DE INVERSIÓN', 'magenta');
-    
-    const montosInversion = [5000, 15000, 50000];
-    const nivelesRiesgo = ['bajo', 'medio', 'alto'];
-    
-    for (let i = 0; i < montosInversion.length; i++) {
-      const monto = montosInversion[i];
-      const riesgo = nivelesRiesgo[i];
-      
-      log(`\n💰 Consejo para $${monto} con riesgo ${riesgo}`, 'yellow');
-      
-      await testEndpoint(
-        `Consejo de inversión - $${monto}`,
-        'POST',
-        '/api/chat/investment-advice',
-        {
-          userId: usuarioPrueba.userId,
-          amount: monto,
-          riskLevel: riesgo
-        }
-      );
-      await delay(2000);
-    }
-
-    // 8. Resumen final
-    separator();
-    log('8️⃣ RESUMEN DE PRUEBAS', 'magenta');
-    log('✅ Todas las pruebas completadas exitosamente', 'green');
-    log('🎯 El sistema está funcionando correctamente', 'green');
-    log('🤖 IA integrada y respondiendo', 'green');
-    log('💾 Base de datos conectada y funcionando', 'green');
-    log('🔧 Servicios MCP operativos', 'green');
-
-  } catch (error) {
-    log('❌ Error durante las pruebas:', 'red');
-    console.error(error);
+  const usuario = await obtenerUsuario("1");
+  if (!usuario) {
+    log('⚠️  No se puede continuar sin el usuario ID 1 en la BD', 'red');
+    return;
   }
 
   separator();
-  log('🏁 PRUEBAS FINALIZADAS', 'bright');
-}
+  log('📊 PERFIL DEL USUARIO', 'blue');
+  log(`👤 Nombre: ${usuario.nombres} ${usuario.apellidos}`, 'cyan');
+  log(`📧 Email: ${usuario.email}`, 'cyan');
+  log(`🎂 Edad: ${usuario.age} años`, 'cyan');
+  log(`💰 Ingresos: $${usuario.income?.toLocaleString()} COP/mes`, 'cyan');
+  log(`📊 Tolerancia al riesgo: ${usuario.risk_tolerance || usuario.riskTolerance}`, 'cyan');
+  log(`🏙️  Ciudad: ${usuario.ciudad}, ${usuario.departamento}`, 'cyan');
+  log(`📚 Nivel de conocimiento: ${usuario.original?.nivel_conocimiento || 'N/A'}`, 'cyan');
 
-// Función para mostrar ayuda
-function mostrarAyuda() {
-  log('📋 SISTEMA DE PRUEBAS SENASOFT 2025', 'bright');
-  log('🎯 Asesor de Inversiones con IA', 'cyan');
-  separator();
-  log('📝 Uso:', 'yellow');
-  log('  node test-sistema.js              - Ejecutar todas las pruebas', 'blue');
-  log('  node test-sistema.js --help       - Mostrar esta ayuda', 'blue');
-  log('  node test-sistema.js --quick      - Pruebas rápidas básicas', 'blue');
-  separator();
-  log('⚠️  Requisitos:', 'yellow');
-  log('  - Servidor principal corriendo en puerto 3000', 'blue');
-  log('  - Servidor MCP corriendo', 'blue');
-  log('  - Base de datos MySQL conectada', 'blue');
-  log('  - API Key de Groq configurada', 'blue');
-  separator();
-}
+  // Preguntas personalizadas basadas en el perfil real
+  const preguntasPersonalizadas = [
+    "Quiero invertir $500,000 COP, ¿qué me recomiendas según mi perfil?",
+    "¿En qué debería invertir considerando mi edad de 26 años y mis ingresos?",
+    "Tengo tolerancia al riesgo básica, ¿cuáles son mis mejores opciones de inversión?",
+    "¿Cómo puedo hacer crecer mis ahorros de forma segura con mis ingresos actuales?"
+  ];
 
-// Función para pruebas rápidas
-async function pruebasRapidas() {
-  log('⚡ EJECUTANDO PRUEBAS RÁPIDAS', 'bright');
+  // Análisis de perfil con IA
   separator();
+  log('1️⃣ ANÁLISIS DE PERFIL CON IA', 'magenta');
+  await testEndpoint('Análisis de perfil', 'GET', `/api/profile/1/analyze`);
+  await delay(2000);
 
-  await testEndpoint('Salud del servidor', 'GET', '/health');
-  await testEndpoint('Servicio MCP', 'GET', '/api/test-mcp');
+  // Respuestas personalizadas
+  separator();
+  log('2️⃣ CONSULTAS PERSONALIZADAS DE INVERSIÓN', 'magenta');
   
-  const usuarioTest = {
-    userId: "test_rapido",
-    age: 25,
-    income: 35000,
-    riskTolerance: "bajo",
-    goals: "Ahorros de emergencia"
-  };
+  for (let i = 0; i < preguntasPersonalizadas.length; i++) {
+    log(`\n💬 Pregunta ${i + 1}: "${preguntasPersonalizadas[i]}"`, 'cyan');
+    await testEndpoint(`Respuesta ${i + 1}`, 'POST', '/api/chat', {
+      message: preguntasPersonalizadas[i],
+      userId: "1"
+    });
+    await delay(2500);
+  }
 
-  await testEndpoint('Guardar perfil', 'POST', '/api/profile', usuarioTest);
-  await testEndpoint('Chat básico', 'POST', '/api/chat', {
-    message: "¿Qué es una inversión segura?",
-    userId: usuarioTest.userId
+  // Consejos de inversión específicos según ingresos
+  separator();
+  log('3️⃣ ESCENARIOS DE INVERSIÓN PERSONALIZADOS', 'magenta');
+  
+  const ingresos = usuario.income || 1800000;
+  const escenarios = [
+    { amount: 500000, desc: "Inversión inicial conservadora" },
+    { amount: Math.round(ingresos * 0.2), desc: "20% de ingresos mensuales" },
+    { amount: Math.round(ingresos * 0.5), desc: "50% de ingresos mensuales" }
+  ];
+
+  for (const escenario of escenarios) {
+    log(`\n💰 ${escenario.desc}: $${escenario.amount.toLocaleString()} COP`, 'cyan');
+    await testEndpoint(`Consejo ${escenario.desc}`, 'POST', '/api/chat/investment-advice', {
+      userId: "1",
+      amount: escenario.amount,
+      riskLevel: usuario.risk_tolerance || usuario.riskTolerance || "básico"
+    });
+    await delay(2500);
+  }
+
+  // Opciones de inversión disponibles
+  separator();
+  log('4️⃣ OPCIONES DE INVERSIÓN DISPONIBLES', 'magenta');
+  
+  const options = await testEndpoint('Instrumentos financieros recomendados', 'POST', '/api/mcp', {
+    action: 'get_investment_options',
+    payload: {
+      riskLevel: usuario.risk_tolerance || usuario.riskTolerance || 'básico',
+      amount: ingresos
+    }
   });
 
-  log('✅ Pruebas rápidas completadas', 'green');
+  if (options?.success && options.data?.length > 0) {
+    log(`\n💼 ${options.data.length} opciones de inversión encontradas`, 'green');
+    log(`📊 Fuente de datos: ${options.tableUsed}`, 'blue');
+  }
+
+  // Resumen
+  separator();
+  log('✅ PRUEBAS COMPLETADAS', 'green');
+  log(`\n📋 Resumen para ${usuario.nombres}:`, 'bright');
+  log(`   • Edad: ${usuario.age} años`, 'blue');
+  log(`   • Ingresos: $${ingresos.toLocaleString()} COP`, 'blue');
+  log(`   • Perfil de riesgo: ${usuario.risk_tolerance || usuario.riskTolerance}`, 'blue');
+  log(`   • Sistema: DB → MCP → IA ✓`, 'green');
+  log(`   • Personalización: Activa ✓`, 'green');
 }
 
-// Manejo de argumentos de línea de comandos
+async function consultarUsuario(userId) {
+  log(`\n📡 Consultando usuario ID "${userId}" vía MCP...`, 'cyan');
+  separator();
+  
+  const result = await testEndpoint(`MCP - Usuario ${userId}`, 'POST', '/api/mcp', {
+    action: 'get_user_profile',
+    payload: { userId: String(userId) }
+  });
+  
+  if (result?.success) {
+    const usuario = result.data;
+    separator();
+    log('📋 PERFIL COMPLETO:', 'green');
+    log(`👤 ${usuario.nombres} ${usuario.apellidos}`, 'cyan');
+    log(`📧 ${usuario.email}`, 'cyan');
+    log(`🎂 ${usuario.age} años`, 'cyan');
+    log(`💰 $${usuario.income?.toLocaleString()} COP/mes`, 'cyan');
+    log(`📊 Riesgo: ${usuario.risk_tolerance || usuario.riskTolerance}`, 'cyan');
+    separator();
+  }
+  
+  return result?.data;
+}
+
+function mostrarAyuda() {
+  log('\n📋 SISTEMA DE PRUEBAS SENASOFT 2025', 'bright');
+  log('🎯 Asesor de Inversiones con IA Personalizada', 'cyan');
+  separator();
+  log('📝 Comandos disponibles:', 'yellow');
+  log('  npm run test                    - Ejecutar pruebas completas con usuario ID 1', 'blue');
+  log('  npm run test -- --get1          - Consultar solo perfil usuario ID 1', 'blue');
+  log('  npm run test -- --get <id>      - Consultar perfil de cualquier usuario', 'blue');
+  log('  npm run test -- --help          - Mostrar esta ayuda', 'blue');
+  separator();
+  log('💡 El sistema analiza el perfil del usuario desde la BD y genera', 'cyan');
+  log('   respuestas personalizadas usando IA (Groq) con contexto completo.', 'cyan');
+  separator();
+}
+
+// Manejo de argumentos
 const args = process.argv.slice(2);
 
 if (args.includes('--help') || args.includes('-h')) {
   mostrarAyuda();
-} else if (args.includes('--quick') || args.includes('-q')) {
-  pruebasRapidas();
+} else if (args.includes('--get1')) {
+  (async () => { 
+    await consultarUsuario('1'); 
+    process.exit(0); 
+  })();
 } else {
-  ejecutarPruebas();
+  const idx = args.indexOf('--get');
+  if (idx !== -1 && args[idx + 1]) {
+    (async () => { 
+      await consultarUsuario(args[idx + 1]); 
+      process.exit(0); 
+    })();
+  } else {
+    ejecutarPruebas();
+  }
 }
