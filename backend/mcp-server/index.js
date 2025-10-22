@@ -40,6 +40,12 @@ class MCPServer {
       handler: this.analyzeInvestmentProfile.bind(this)
     });
 
+    this.tools.set('get_user_objectives', {
+      description: 'Retrieve user objectives from database',
+      handler: this.getUserObjectives.bind(this)
+    });
+
+
     // --- Nuevas herramientas para verificación de esquema y uso desde test-sistema.js
     this.tools.set('check_table_exists', {
       description: 'Check if a database table exists',
