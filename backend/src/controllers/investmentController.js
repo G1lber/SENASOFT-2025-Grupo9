@@ -1,8 +1,8 @@
 module.exports = {
-	sendMessage: async (req, res, next) => {
+	listOptions: async (req, res, next) => {
 		try {
 			// ...implementar...
-			res.json({ reply: 'pong' });
+			res.json({ instruments: [] });
 		} catch (err) {
 			next(err);
 		}

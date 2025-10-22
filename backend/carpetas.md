@@ -1,4 +1,4 @@
-backend1/
+backend/
 ├── src/
 │   ├── agents/                    # Agentes especializados
 │   │   ├── profileAgent.js        # Diagnostica perfil de usuario

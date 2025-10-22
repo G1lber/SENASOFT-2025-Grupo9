@@ -1,26 +1,13 @@
 {
-  "name": "senasoft-2025-grupo9",
-  "version": "1.0.0",
-  "description": "SENASOFT 2025 - Grupo 9 Project",
-  "main": "app.js",
+  "name": "senasoft-backend",
+  "version": "0.1.0",
+  "main": "src/app.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js",
-    "test": "jest"
+    "start": "node src/app.js",
+    "mcp": "node mcp-server/index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.0.0",
-    "dotenv": "^16.3.1",
-    "mongoose": "^7.5.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "@langchain/core": "^0.1.0",
-    "openai": "^4.0.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1",
-    "jest": "^29.6.4"
+    "node-fetch": "^2.6.7"
   }
 }
