@@ -1,4 +1,4 @@
-const express = require('express');
+import express from "express"
 const profileController = require('../controllers/profileController');
 
 const router = express.Router();
