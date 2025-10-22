@@ -1,7 +1,12 @@
 const express = require('express');
-const router = express.Router();
 const chatController = require('../controllers/chatController');
 
-router.post('/message', chatController.sendMessage);
+const router = express.Router();
+
+// Chat with AI
+router.post('/', chatController.chat);
+
+// Get investment advice
+router.post('/investment-advice', chatController.getInvestmentAdvice);
 
 module.exports = router;

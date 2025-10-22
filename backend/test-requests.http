@@ -1,0 +1,43 @@
+### Test server health
+GET http://localhost:3000/health
+
+### Test MCP service
+GET http://localhost:3000/api/test-mcp
+
+### Save user profile
+POST http://localhost:3000/api/profile
+Content-Type: application/json
+
+{
+  "userId": "user123",
+  "age": 30,
+  "income": 50000,
+  "riskTolerance": "medium",
+  "goals": "Retirement planning and wealth building"
+}
+
+### Get user profile
+GET http://localhost:3000/api/profile/user123
+
+### Analyze user profile
+GET http://localhost:3000/api/profile/user123/analyze
+
+### Chat with AI
+POST http://localhost:3000/api/chat
+Content-Type: application/json
+
+{
+  "message": "What are some good investment options for a beginner?",
+  "userId": "user123",
+  "context": "Looking for low-risk investments"
+}
+
+### Get investment advice
+POST http://localhost:3000/api/chat/investment-advice
+Content-Type: application/json
+
+{
+  "userId": "user123",
+  "amount": 10000,
+  "riskLevel": "medium"
+}
