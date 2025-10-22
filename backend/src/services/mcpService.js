@@ -47,6 +47,11 @@ class MCPService {
 		return await this.server.callTool('analyze_with_groq', { prompt, context });
 	}
 
+	async processRequest(request) {
+		const server = await this.getServer();
+		return await server.processAgentRequest(request);
+	}
+
 	getAvailableTools() {
 		if (!this.server) {
 			return [];

@@ -39,6 +39,30 @@ class MCPServer {
       description: 'Complete investment profile analysis combining user data and AI recommendations',
       handler: this.analyzeInvestmentProfile.bind(this)
     });
+
+    // --- Nuevas herramientas para verificación de esquema y uso desde test-sistema.js
+    this.tools.set('check_table_exists', {
+      description: 'Check if a database table exists',
+      handler: this.checkTableExists.bind(this)
+    });
+
+    this.tools.set('get_database_schema', {
+      description: 'List database tables (information_schema)',
+      handler: this.getDatabaseSchema.bind(this)
+    });
+  }
+
+  // Helper para calcular edad desde fecha de nacimiento
+  calculateAge(birthDate) {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
   }
 
   async getUserProfile(args) {
@@ -48,17 +72,63 @@ class MCPServer {
       throw new Error('UserId is required');
     }
 
+    // Primero intentar tabla legacy user_profiles, si falla -> fallback a usuarios (DDL)
     try {
-      const [rows] = await pool.execute(
-        'SELECT * FROM user_profiles WHERE user_id = ?',
+      try {
+        const [rows] = await pool.execute(
+          'SELECT * FROM user_profiles WHERE user_id = ?',
+          [userId]
+        );
+        if (rows && rows.length > 0) {
+          return {
+            success: true,
+            data: rows[0],
+            message: 'User profile found (legacy table)',
+            tableUsed: 'user_profiles'
+          };
+        }
+        // Si no hay filas, no lanzar error; intentar tabla DDL abajo
+      } catch (legacyErr) {
+        // Si la tabla no existe o error, lo registramos y continuamos con DDL
+        console.log('Legacy user_profiles query failed, trying DDL table usuarios...', legacyErr.message);
+      }
+
+      // Intento con tabla DDL usuarios
+      const [rowsDDL] = await pool.execute(
+        'SELECT * FROM usuarios WHERE id_usuario = ?',
         [userId]
       );
-      
+
+      if (rowsDDL && rowsDDL.length > 0) {
+        const u = rowsDDL[0];
+        const mappedUser = {
+          user_id: u.id_usuario,
+          age: this.calculateAge(u.fecha_nacimiento),
+          income: u.ingresos_mensuales_cop,
+          risk_tolerance: u.nivel_conocimiento,
+          goals: null,
+          nombres: u.nombres,
+          apellidos: u.apellidos,
+          email: u.email,
+          ciudad: u.ciudad,
+          departamento: u.departamento,
+          original: u
+        };
+
+        return {
+          success: true,
+          data: mappedUser,
+          message: 'User profile found (DDL usuarios)',
+          tableUsed: 'usuarios'
+        };
+      }
+
       return {
         success: true,
-        data: rows[0] || null,
-        message: rows[0] ? 'User profile found' : 'User profile not found'
+        data: null,
+        message: 'User profile not found in any table'
       };
+
     } catch (error) {
       console.error('Database error in getUserProfile:', error);
       throw new Error(`Database error: ${error.message}`);
@@ -66,28 +136,81 @@ class MCPServer {
   }
 
   async saveUserProfile(args) {
-    const { userId, age, income, riskTolerance, goals } = args;
+    const { userId, age, income, riskTolerance, goals, nombres, apellidos, email } = args;
     
     if (!userId) {
       throw new Error('UserId is required');
     }
 
     try {
+      try {
+        // Intento en tabla legacy
+        await pool.execute(`
+          INSERT INTO user_profiles (user_id, age, income, risk_tolerance, goals, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+          ON DUPLICATE KEY UPDATE
+          age = VALUES(age),
+          income = VALUES(income),
+          risk_tolerance = VALUES(risk_tolerance),
+          goals = VALUES(goals),
+          updated_at = NOW()
+        `, [userId, age || null, income || null, riskTolerance || null, goals || null]);
+
+        return {
+          success: true,
+          message: 'Profile saved successfully (legacy table)',
+          tableUsed: 'user_profiles'
+        };
+      } catch (legacyErr) {
+        // Si falla (tabla inexistente), intentar guardar en tabla DDL usuarios (simplificado)
+        console.log('Legacy user_profiles save failed, trying to save into usuarios (DDL)...', legacyErr.message);
+      }
+
+      // Para insertar en usuarios necesitamos al menos nombres/apellidos/email; si no están, devolver error claro
+      if (!nombres || !apellidos || !email) {
+        throw new Error('To save into DDL table "usuarios" provide nombres, apellidos and email');
+      }
+
+      // Fecha de nacimiento aproximada a partir de age (si se proporciona)
+      const fechaNacimiento = age ? new Date(new Date().getFullYear() - age, 0, 1) : new Date('1990-01-01');
+
       await pool.execute(`
-        INSERT INTO user_profiles (user_id, age, income, risk_tolerance, goals, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+        INSERT INTO usuarios (
+          id_usuario, nombres, apellidos, cedula, fecha_nacimiento, genero,
+          ciudad, departamento, direccion, email, celular, nivel_conocimiento,
+          estrato, ingresos_mensuales_cop, sarlaft_ok, es_pep
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-        age = VALUES(age),
-        income = VALUES(income),
-        risk_tolerance = VALUES(risk_tolerance),
-        goals = VALUES(goals),
-        updated_at = NOW()
-      `, [userId, age || null, income || null, riskTolerance || null, goals || null]);
+          nombres = VALUES(nombres),
+          apellidos = VALUES(apellidos),
+          email = VALUES(email),
+          nivel_conocimiento = VALUES(nivel_conocimiento),
+          ingresos_mensuales_cop = VALUES(ingresos_mensuales_cop)
+      `, [
+        userId,
+        nombres,
+        apellidos,
+        `CC${userId}`,
+        fechaNacimiento,
+        'M',
+        'Ciudad por defecto',
+        'Departamento por defecto',
+        'Dirección por defecto',
+        email,
+        '3000000000',
+        riskTolerance || 'Principiante',
+        3,
+        income || 0,
+        'S',
+        'N'
+      ]);
 
       return {
         success: true,
-        message: 'Profile saved successfully'
+        message: 'Profile saved successfully (DDL usuarios)',
+        tableUsed: 'usuarios'
       };
+
     } catch (error) {
       console.error('Database error in saveUserProfile:', error);
       throw new Error(`Database error: ${error.message}`);
@@ -98,28 +221,131 @@ class MCPServer {
     const { riskLevel = 'medium', amount = 0 } = args;
     
     try {
-      const [rows] = await pool.execute(
-        'SELECT * FROM investment_options WHERE risk_level = ? AND min_amount <= ? LIMIT 10',
-        [riskLevel, amount]
+      // Intento en tabla legacy
+      try {
+        const [rows] = await pool.execute(
+          'SELECT * FROM investment_options WHERE risk_level = ? AND min_amount <= ? LIMIT 10',
+          [riskLevel, amount]
+        );
+        if (rows && rows.length > 0) {
+          return {
+            success: true,
+            data: rows,
+            message: `Found ${rows.length} investment options (legacy)`,
+            tableUsed: 'investment_options'
+          };
+        }
+      } catch (legacyErr) {
+        console.log('Legacy investment_options query failed, trying DDL instrumentos_financieros...', legacyErr.message);
+      }
+
+      // Fallback a instrumentos_financieros (DDL)
+      const [rowsDDL] = await pool.execute(
+        'SELECT * FROM instrumentos_financieros WHERE min_inversion_cop <= ? LIMIT 10',
+        [amount]
       );
-      
+
+      const mapped = (rowsDDL || []).map(item => ({
+        id: item.id_instrumento,
+        name: item.tipo_instrumento,
+        risk_level: item.nivel_riesgo,
+        min_amount: item.min_inversion_cop,
+        expected_return: item.tasa_nominal_anual_pct,
+        liquidity_days: item.liquidez_dias,
+        currency: item.moneda,
+        commission: item.comision_apertura_pct,
+        bank_id: item.id_banco,
+        original: item
+      }));
+
       return {
         success: true,
-        data: rows,
-        message: rows.length > 0 ? `Found ${rows.length} investment options` : 'No investment options found'
+        data: mapped,
+        message: `Found ${mapped.length} investment options (DDL instrumentos_financieros)`,
+        tableUsed: 'instrumentos_financieros'
       };
+
     } catch (error) {
       console.error('Database error in getInvestmentOptions:', error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
 
+  // Nuevo: verifica existencia de tabla en la BD (information_schema)
+  async checkTableExists(args) {
+    const { tableName } = args || {};
+    if (!tableName) {
+      throw new Error('tableName is required');
+    }
+
+    try {
+      const [rows] = await pool.execute(
+        `SELECT COUNT(*) AS table_exists
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+         AND table_name = ?`,
+        [tableName]
+      );
+      const exists = rows[0] && rows[0].table_exists > 0;
+      return {
+        success: true,
+        data: { tableName, exists },
+        message: exists ? `Table ${tableName} exists` : `Table ${tableName} does not exist`
+      };
+    } catch (err) {
+      console.error('Database error in checkTableExists:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  // Nuevo: devuelve listado básico de tablas del esquema actual
+  async getDatabaseSchema() {
+    try {
+      const [rows] = await pool.execute(
+        `SELECT table_name, table_type, engine
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+         ORDER BY table_name`
+      );
+      return {
+        success: true,
+        data: rows,
+        message: `Found ${rows.length} tables in database`
+      };
+    } catch (err) {
+      console.error('Database error in getDatabaseSchema:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  // Nuevo helper: si payload contiene userId, adjunta userProfile si está disponible
+  async ensureUserProfileInArgs(args = {}) {
+    if (!args.userId) return args;
+    if (args.userProfile) return args;
+    try {
+      const profileResult = await this.getUserProfile({ userId: args.userId });
+      if (profileResult && profileResult.success && profileResult.data) {
+        return { ...args, userProfile: profileResult.data };
+      }
+      return args;
+    } catch (err) {
+      // Propagar para que el llamador lo capture si es necesario
+      throw err;
+    }
+  }
+
+  // Ajuste: analyzeWithGroq ahora admite userProfile y lo incluye en el contexto
   async analyzeWithGroq(args) {
-    const { prompt, context = '' } = args;
+    const { prompt, context = '', userProfile } = args || {};
     
     if (!prompt) {
       throw new Error('Prompt is required for Groq analysis');
     }
+
+    // Si existe userProfile, lo agregamos al contexto automáticamente
+    const fullContext = userProfile
+      ? `${context}\n\nUser Profile:\n${JSON.stringify(userProfile, null, 2)}`
+      : context;
 
     try {
       const completion = await groq.chat.completions.create({
@@ -130,7 +356,7 @@ class MCPServer {
           },
           {
             role: 'user',
-            content: `${prompt}\n\nContext: ${context}`
+            content: `${prompt}\n\nContext: ${fullContext}`
           }
         ],
         model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
@@ -217,24 +443,21 @@ class MCPServer {
 
   // Agent-compatible request processor
   async processAgentRequest(request) {
-    const { action, payload, metadata } = request;
+    const { action, payload = {}, metadata } = request;
     
     if (!action) {
       throw new Error('Action is required in agent request');
     }
 
     try {
-      // Map agent actions to tool names
-      const toolName = action;
-      
-      // Log the request for debugging
       console.log(`🤖 Processing agent request: ${action}`);
       console.log(`📋 Payload:`, payload);
-      
-      // Call the appropriate tool
-      const result = await this.callTool(toolName, payload || {});
-      
-      // Return agent-compatible response
+
+      // Intentar enriquecer con perfil de usuario si aplica
+      const enrichedPayload = await this.ensureUserProfileInArgs(payload);
+
+      const result = await this.callTool(action, enrichedPayload || {});
+
       return {
         success: result.success,
         data: result.data,
@@ -246,7 +469,6 @@ class MCPServer {
           action: action
         }
       };
-
     } catch (error) {
       console.error(`Agent request error for ${action}:`, error);
       return {
