@@ -1,10 +1,14 @@
 const { pool } = require('../src/config/database.js');
-const Groq = require('groq-sdk');
+const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 require('dotenv').config();
 
-// Initialize Groq client
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
+// Initialize AWS Bedrock client
+const bedrockClient = new BedrockRuntimeClient({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
 });
 
 // Simple MCP-like server implementation
@@ -77,7 +81,8 @@ class MCPServer {
 
     try {
       const [rows] = await pool.execute(
-        `SELECT * FROM objetivos WHERE id_usuario = ?`,
+        `SELECT * FROM objetivos WHERE id_usuario = ?;
+`,
         [userId]
       );
 
@@ -361,44 +366,62 @@ class MCPServer {
     }
   }
 
-  // Ajuste: analyzeWithGroq ahora admite userProfile y lo incluye en el contexto
+  // Ajuste: analyzeWithGroq ahora usa AWS Bedrock con Llama 3 70B
   async analyzeWithGroq(args) {
     const { prompt, context = '', userProfile } = args || {};
-
+    
     if (!prompt) {
-      throw new Error('Prompt is required for Groq analysis');
+      throw new Error('Prompt is required for analysis');
     }
 
     // Si existe userProfile, lo agregamos al contexto automáticamente
     const fullContext = userProfile
-      ? `${context}\n\nUser Profile:\n${JSON.stringify(userProfile, null, 2)}`
+      ? `${context}\n\nPerfil del Usuario:\n${JSON.stringify(userProfile, null, 2)}`
       : context;
 
     try {
-      const completion = await groq.chat.completions.create({
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a financial advisor AI assistant. Provide clear, helpful investment advice based on the user\'s profile and context.'
-          },
-          {
-            role: 'user',
-            content: `${prompt}\n\nContext: ${fullContext}`
-          }
-        ],
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        temperature: 0.7,
-        max_tokens: 1024
-      });
+      // Construir el mensaje para Llama 3
+      const systemPrompt = `Eres un asesor financiero experto en el mercado colombiano. 
+Proporciona consejos claros y útiles sobre inversiones en español.
+Considera pesos colombianos (COP), instrumentos de inversión locales y regulaciones financieras colombianas.
+Adapta tus respuestas al perfil específico del usuario (edad, ingresos, tolerancia al riesgo).`;
+      
+      const userMessage = `${prompt}\n\nContexto: ${fullContext}`;
+      
+      const fullPrompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+${systemPrompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+${userMessage}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`;
+
+      // Invocar modelo Llama 3 70B en AWS Bedrock
+      const input = {
+        modelId: process.env.AWS_BEDROCK_MODEL || 'meta.llama3-70b-instruct-v1:0',
+        contentType: 'application/json',
+        accept: 'application/json',
+        body: JSON.stringify({
+          prompt: fullPrompt,
+          max_gen_len: 2048,
+          temperature: 0.7,
+          top_p: 0.9
+        })
+      };
+
+      const command = new InvokeModelCommand(input);
+      const response = await bedrockClient.send(command);
+      
+      // Parsear respuesta de Bedrock
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+      const generatedText = responseBody.generation || responseBody.results?.[0]?.outputText || 'No se pudo generar respuesta';
 
       return {
         success: true,
-        data: completion.choices[0]?.message?.content || 'No response from Groq',
-        message: 'Analysis completed successfully'
+        data: generatedText.trim(),
+        message: 'Analysis completed successfully with AWS Bedrock Llama 3 70B'
       };
     } catch (error) {
-      console.error('Groq API error:', error);
-      throw new Error(`Groq API error: ${error.message}`);
+      console.error('AWS Bedrock error:', error);
+      throw new Error(`AWS Bedrock error: ${error.message}`);
     }
   }
 
@@ -542,9 +565,9 @@ class MCPServer {
 // Test function to verify the server works
 async function testServer() {
   const server = new MCPServer();
-
-  console.log('🧪 Testing MCP Server...');
-
+  
+  console.log('🧪 Testing MCP Server with AWS Bedrock...');
+  
   // Test database connection
   try {
     const connection = await pool.getConnection();
@@ -555,29 +578,33 @@ async function testServer() {
     return;
   }
 
-  // Test Groq API
-  if (process.env.GROQ_API_KEY) {
-    console.log('✅ Groq API key configured');
-
-    // Test Groq connection
+  // Test AWS Bedrock
+  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    console.log('✅ AWS Bedrock credentials configured');
+    console.log(`📍 Region: ${process.env.AWS_REGION || 'us-east-1'}`);
+    console.log(`🤖 Model: ${process.env.AWS_BEDROCK_MODEL || 'meta.llama3-70b-instruct-v1:0'}`);
+    
+    // Test AWS Bedrock connection
     try {
       const testResult = await server.callTool('analyze_with_groq', {
-        prompt: 'Test connection',
-        context: 'This is a test'
+        prompt: 'Responde en una línea: ¿Qué es una inversión?',
+        context: 'Test de conexión con AWS Bedrock'
       });
-      console.log('✅ Groq API connection successful');
+      console.log('✅ AWS Bedrock Llama 3 70B connection successful');
+      console.log('📝 Test response:', testResult.data.substring(0, 150) + '...');
     } catch (error) {
-      console.error('❌ Groq API test failed:', error.message);
+      console.error('❌ AWS Bedrock test failed:', error.message);
+      console.error('💡 Verifica que el modelo esté habilitado en tu cuenta de AWS Bedrock');
     }
   } else {
-    console.log('⚠️  Groq API key not configured');
+    console.log('⚠️  AWS Bedrock credentials not configured');
   }
 
   // List available tools
   const tools = server.listTools();
   console.log('🔧 Available tools:', tools.map(t => t.name).join(', '));
-
-  console.log('🚀 MCP Server is ready to use!');
+  
+  console.log('🚀 MCP Server is ready to use with AWS Bedrock Llama 3 70B!');
   return server;
 }
 
