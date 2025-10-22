@@ -81,7 +81,7 @@ class MCPServer {
 
     try {
       const [rows] = await pool.execute(
-        `SELECT * FROM objetivos WHERE id_usuario = ?
+        `SELECT * FROM objetivos WHERE id_usuario = ?;
 `,
         [userId]
       );
@@ -108,7 +108,7 @@ class MCPServer {
     try {
       try {
         const [rows] = await pool.execute(
-          'SELECT * FROM usuarios WHERE id_usuario = ?',
+          'SELECT * FROM user_profiles WHERE user_id = ?',
           [userId]
         );
         if (rows && rows.length > 0) {
