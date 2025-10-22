@@ -1,0 +1,32 @@
+<div class="container-fluid py-4 chat-container">
+  <div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8 chat-box">
+
+      <!-- Encabezado -->
+      <div class="chat-header d-flex align-items-center">
+        <img src="assets/bot.png" alt="Bot" class="bot-avatar me-3">
+        <div>
+          <h5 class="mb-0">Dr. Andrés Bot</h5>
+          <small class="text-success">En línea • Respuesta inmediata</small>
+        </div>
+      </div>
+
+      <!-- Cuerpo del chat -->
+      <div class="chat-body" id="chatScroll">
+        <div *ngFor="let msg of mensajes" class="mensaje" [ngClass]="msg.tipo">
+          <p>{{ msg.texto }}</p>
+        </div>
+      </div>
+
+      <!-- Caja de texto -->
+      <div class="chat-input d-flex mt-3">
+        <input type="text" [(ngModel)]="nuevoMensaje" (keyup.enter)="enviarMensaje()"
+               placeholder="Escribe tu mensaje..." class="form-control me-2">
+        <button class="btn btn-primary" (click)="enviarMensaje()">
+          <i class="bi bi-send"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
