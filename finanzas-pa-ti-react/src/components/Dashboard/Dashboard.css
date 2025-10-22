@@ -1,0 +1,88 @@
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.dashboard-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.dashboard-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-content {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+.profile-card, .analysis-card {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+.profile-card h2, .analysis-card h2 {
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
+  margin-top: 0;
+  text-align: left;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.profile-item span:first-child {
+  font-weight: bold;
+  color: #555;
+}
+
+.analysis-content {
+  line-height: 1.6;
+  color: #444;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  font-size: 18px;
+  color: #666;
+}
+
+.error {
+  padding: 20px;
+  background-color: #ffebee;
+  color: #c62828;
+  border-radius: 5px;
+  text-align: center;
+  margin: 20px 0;
+}
