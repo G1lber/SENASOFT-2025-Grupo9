@@ -15,7 +15,6 @@ export const routes: Routes = [
   {
     path: 'inicio',
     component: Contenido,
-    canActivate: [authGuard],
     children: [
       { path: 'asesor', component: Chat }
     ]

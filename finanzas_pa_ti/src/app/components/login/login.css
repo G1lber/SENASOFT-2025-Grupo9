@@ -1,0 +1,25 @@
+.login-wrapper  {
+  background: linear-gradient(to top,#0B6377 0%, #BAE5EF   50%, #BAE5EF 100%);
+}
+
+label {
+  padding-bottom: 5px;
+}
+
+.btn.ingresar {
+  color: #0B6377;
+  background-color: #fff;
+  border: 2px solid #0B6377;
+  align-content: center;
+}
+
+.btn.ingresar:hover {
+  background-color: #0B6377;
+  color: #fff;
+  transition: 0.3s;
+}
+
+.bi-arrow-right {
+  padding-right: 2px;
+}
+

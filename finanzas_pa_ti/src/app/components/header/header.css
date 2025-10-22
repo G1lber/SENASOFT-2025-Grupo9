@@ -8,7 +8,8 @@
   position: relative;
   z-index: 1000;
 }
-
+li a {
+}
 .logo img {
   height: 50px;
 }
@@ -22,10 +23,17 @@
 
 .nav-links li a {
   text-decoration: none;
-  color: #333;
+  color: #0B6377;
   font-weight: 500;
   transition: color 0.3s;
 }
+.nav-links li i {
+  text-decoration: none;
+  color: #0B6377;
+  font-weight: 500;
+  transition: color 0.3s;
+}
+
 
 .nav-links li a:hover {
   color: #ff6600;
