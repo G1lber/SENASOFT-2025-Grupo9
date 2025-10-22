@@ -1,1 +1,27 @@
-<p>header works!</p>
+<nav class="navbar">
+  <!-- Logo -->
+  <div class="logo">
+    <img src="assets/logo.png" alt="Logo">
+  </div>
+
+  <!-- Menú de escritorio -->
+  <ul class="nav-links">
+    <li><a routerLink="/asesor">Asesor</a></li>
+    <li><a routerLink="/recursos">Recursos educativos</a></li>
+    <li><a routerLink="/propuesta">Propuesta</a></li>
+  </ul>
+
+  <!-- Botón móvil -->
+  <button class="menu-btn" (click)="toggleMenu()">
+    ☰
+  </button>
+
+  <!-- Menú móvil -->
+  <div *ngIf="menuAbierto" class="mobile-menu">
+    <ul>
+      <li><a routerLink="/asesor" (click)="toggleMenu()">Asesor</a></li>
+      <li><a routerLink="/recursos" (click)="toggleMenu()">Recursos educativos</a></li>
+      <li><a routerLink="/propuesta" (click)="toggleMenu()">Propuesta</a></li>
+    </ul>
+  </div>
+</nav>
