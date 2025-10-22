@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=but9mopf5hhipe7hjibl-mysql.services.clever-cloud.com
+      - DB_USER=u1cmd7n4ngjc20s5
+      - DB_PASSWORD=KKXzAXh6K6Ax1HtTxeEw
+      - DB_NAME=but9mopf5hhipe7hjibl
+      - DB_PORT=3306
+      - AWS_ACCESS_KEY_ID=AKIAWRVXJWNLYENVA5LG
+      - AWS_SECRET_ACCESS_KEY=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
+      - AWS_REGION=us-east-1
+      - AWS_BEDROCK_MODEL=meta.llama3-70b-instruct-v1:0
+      - NODE_ENV=production
+    restart: unless-stopped
