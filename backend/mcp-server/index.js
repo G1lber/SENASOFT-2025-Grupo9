@@ -81,19 +81,7 @@ class MCPServer {
 
     try {
       const [rows] = await pool.execute(
-        `SELECT 
-              u.id_usuario,
-              u.nombres,
-              u.apellidos,
-              u.email,
-              o.id_objetivo,
-              o.tipo_objetivo,
-              o.monto_meta_cop,
-              o.fecha_meta,
-              o.descripcion
-            FROM usuarios u
-            INNER JOIN objetivos o
-              ON u.id_usuario = o.id_usuario;
+        `SELECT * FROM objetivos WHERE id_usuario = ?;
 `,
         [userId]
       );
