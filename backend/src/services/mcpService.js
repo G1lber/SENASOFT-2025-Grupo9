@@ -1,63 +1,80 @@
-const { createMCPServer } = require('../../mcp-server/index.js');
+const { createMCPServer } = require('../../mcp-server');
 
 class MCPService {
 	constructor() {
-		this.server = null;
+		this.mcpServer = null;
 		this.initialize();
 	}
 
 	async initialize() {
 		try {
-			this.server = await createMCPServer();
+			this.mcpServer = await createMCPServer();
 			console.log('✅ MCP Service initialized');
 		} catch (error) {
-			console.error('❌ Failed to initialize MCP Service:', error.message);
+			console.error('❌ Failed to initialize MCP Service:', error);
+			throw error;
+		}
+	}
+
+	async ensureInitialized() {
+		if (!this.mcpServer) {
+			await this.initialize();
 		}
 	}
 
 	async getUserProfile(userId) {
-		if (!this.server) {
-			throw new Error('MCP Server not initialized');
-		}
-		
-		return await this.server.callTool('get_user_profile', { userId });
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('get_user_profile', { userId });
 	}
 
 	async saveUserProfile(profileData) {
-		if (!this.server) {
-			throw new Error('MCP Server not initialized');
-		}
-		
-		return await this.server.callTool('save_user_profile', profileData);
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('save_user_profile', profileData);
 	}
 
 	async getInvestmentOptions(riskLevel, amount = 0) {
-		if (!this.server) {
-			throw new Error('MCP Server not initialized');
-		}
-		
-		return await this.server.callTool('get_investment_options', { riskLevel, amount });
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('get_investment_options', { 
+			riskLevel, 
+			amount 
+		});
 	}
 
-	async analyzeWithGroq(prompt, context = '') {
-		if (!this.server) {
-			throw new Error('MCP Server not initialized');
-		}
-		
-		return await this.server.callTool('analyze_with_groq', { prompt, context });
+	async analyzeWithGroq(prompt, context = '', userProfile = null, userId = null, conversationHistory = []) {
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('analyze_with_groq', {
+			prompt,
+			context,
+			userProfile,
+			userId,
+			conversationHistory
+		});
 	}
 
-	async processRequest(request) {
-		const server = await this.getServer();
-		return await server.processAgentRequest(request);
+	async clearConversationHistory(userId) {
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('clear_conversation', { userId });
+	}
+
+	async getConversationHistory(userId) {
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('get_conversation_history', { userId });
+	}
+
+	async analyzeInvestmentProfile(userId, investmentAmount) {
+		await this.ensureInitialized();
+		return await this.mcpServer.callTool('analyze_investment_profile', {
+			userId,
+			investmentAmount
+		});
 	}
 
 	getAvailableTools() {
-		if (!this.server) {
+		if (!this.mcpServer) {
 			return [];
 		}
 		
-		return this.server.listTools();
+		return this.mcpServer.listTools();
 	}
 }
 

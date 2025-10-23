@@ -18,6 +18,7 @@ if (!GROQ_API_KEY) {
 class MCPServer {
   constructor() {
     this.tools = new Map();
+    this.conversationHistory = new Map(); // Historial por usuario
     this.setupTools();
   }
 
@@ -62,18 +63,49 @@ class MCPServer {
       description: 'List database tables',
       handler: () => this.getDatabaseSchema()
     });
+
+    this.tools.set('clear_conversation', {
+      description: 'Clear conversation history for a user',
+      handler: (args) => this.clearConversationHistory(args)
+    });
+
+    this.tools.set('get_conversation_history', {
+      description: 'Get conversation history for a user',
+      handler: (args) => this.getConversationHistory(args)
+    });
   }
 
   calculateAge(birthDate) {
     if (!birthDate) return null;
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-      age--;
+    
+    try {
+      const today = new Date();
+      const birth = new Date(birthDate);
+      
+      // Verificar que la fecha es válida
+      if (isNaN(birth.getTime())) {
+        console.log(`⚠️ Invalid birth date: ${birthDate}`);
+        return null;
+      }
+      
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      
+      // Validar que la edad es razonable (entre 18 y 120 años)
+      if (age < 18 || age > 120) {
+        console.log(`⚠️ Unreasonable age calculated: ${age} from ${birthDate}`);
+        return null;
+      }
+      
+      return age;
+    } catch (error) {
+      console.error(`Error calculating age from ${birthDate}:`, error);
+      return null;
     }
-    return age;
   }
 
   async getUserObjectives(args) {
@@ -105,23 +137,6 @@ class MCPServer {
     }
 
     try {
-      try {
-        const [rows] = await pool.execute(
-          'SELECT * FROM usuarios WHERE id_usuario = ?',
-          [userId]
-        );
-        if (rows && rows.length > 0) {
-          return {
-            success: true,
-            data: rows[0],
-            message: 'User profile found (legacy table)',
-            tableUsed: 'usuarios'
-          };
-        }
-      } catch (legacyErr) {
-        console.log('Legacy user_profiles query failed, trying DDL table usuarios...', legacyErr.message);
-      }
-
       const [rowsDDL] = await pool.execute(
         'SELECT * FROM usuarios WHERE id_usuario = ?',
         [userId]
@@ -129,24 +144,37 @@ class MCPServer {
 
       if (rowsDDL && rowsDDL.length > 0) {
         const u = rowsDDL[0];
+        
+        // Calcular edad de forma segura
+        const edad = this.calculateAge(u.fecha_nacimiento);
+        
+        // Log para debugging
+        console.log(`📊 User data: fecha_nacimiento=${u.fecha_nacimiento}, edad calculada=${edad}, ingresos=${u.ingresos_mensuales_cop}`);
+        
         const mappedUser = {
           user_id: u.id_usuario,
-          age: this.calculateAge(u.fecha_nacimiento),
-          income: u.ingresos_mensuales_cop,
-          risk_tolerance: u.nivel_conocimiento,
+          age: edad,
+          income: parseInt(u.ingresos_mensuales_cop) || 0,
+          risk_tolerance: u.nivel_conocimiento || 'Básico',
           goals: null,
-          nombres: u.nombres,
-          apellidos: u.apellidos,
-          email: u.email,
-          ciudad: u.ciudad,
-          departamento: u.departamento,
+          nombres: u.nombres || 'Usuario',
+          apellidos: u.apellidos || '',
+          email: u.email || '',
+          ciudad: u.ciudad || 'Colombia',
+          departamento: u.departamento || '',
+          cedula: u.cedula || '',
+          genero: u.genero || '',
+          estrato: u.estrato || 0,
+          fecha_nacimiento: u.fecha_nacimiento,
           original: u
         };
+
+        console.log(`✅ Mapped user profile: edad=${mappedUser.age}, ingresos=${mappedUser.income}`);
 
         return {
           success: true,
           data: mappedUser,
-          message: 'User profile found (DDL usuarios)',
+          message: 'User profile found',
           tableUsed: 'usuarios'
         };
       }
@@ -302,15 +330,36 @@ class MCPServer {
   }
 
   async analyzeWithGroq(args) {
-    const { prompt, context = '', userProfile } = args || {};
+    const { prompt, context = '', userProfile, userId, conversationHistory = [] } = args || {};
     
     if (!prompt) {
       throw new Error('Prompt is required for analysis');
     }
 
-    const fullContext = userProfile
-      ? `${context}\n\nPerfil del Usuario:\n${JSON.stringify(userProfile, null, 2)}`
-      : context;
+    // Construir perfil resumido del usuario con validaciones
+    let perfilResumido = '';
+    if (userProfile) {
+      const nombre = `${userProfile.nombres || 'Usuario'} ${userProfile.apellidos || ''}`.trim();
+      const ciudad = userProfile.ciudad || 'Colombia';
+      const departamento = userProfile.departamento || '';
+      const ubicacion = departamento ? `${ciudad}, ${departamento}` : ciudad;
+      const ingresos = parseInt(userProfile.income) || 0;
+      const edad = userProfile.age;
+      const nivel = userProfile.risk_tolerance || 'Básico';
+      
+      perfilResumido = `
+👤 Usuario: ${nombre}
+📍 Ubicación: ${ubicacion}
+💰 Ingresos: $${ingresos.toLocaleString('es-CO')} COP/mes
+📚 Nivel: ${nivel}`;
+      
+      // Solo agregar edad si está disponible
+      if (edad !== null && edad !== undefined) {
+        perfilResumido += `\n🎂 Edad: ${edad} años`;
+      }
+    }
+
+    const fullContext = `${perfilResumido}\n${context}`;
 
     if (!GROQ_API_KEY) {
       console.log('⚠️ Groq API key not available, using fallback response');
@@ -318,12 +367,113 @@ class MCPServer {
     }
 
     try {
-      const systemPrompt = `Eres un asesor financiero experto en el mercado colombiano. 
-Proporciona consejos claros y útiles sobre inversiones en español.
-Considera pesos colombianos (COP), instrumentos de inversión locales y regulaciones financieras colombianas.
-Adapta tus respuestas al perfil específico del usuario (edad, ingresos, tolerancia al riesgo).`;
-      
-      const userMessage = `${prompt}\n\nContexto: ${fullContext}`;
+      // Sistema de prompts optimizado
+      const systemPrompt = `Eres Santiago, un asesor financiero colombiano experto, certificado y con amplia experiencia.
+
+🎯 PERSONALIDAD:
+- Tono cercano, profesional pero amigable
+- Usa el nombre del usuario de forma natural
+- Respuestas CONCISAS: máximo 200 palabras (salvo análisis complejos)
+- Emojis estratégicos: 💰 📊 🏦 ✅ 🎯 ⚠️ (máximo 3 por respuesta)
+- Español colombiano natural
+
+📚 EXPERTISE:
+- Mercado financiero colombiano: CDTs, TES, fondos, BVC
+- Bancos: Bancolombia, Davivienda, BBVA, Colpatria
+- Regulación: Superintendencia Financiera de Colombia
+- Tasas realistas 2024-2025: CDT 9-12% EA, Fondos 5-15%
+
+🔄 METODOLOGÍA (NO MENCIONAR EXPLÍCITAMENTE):
+1. Entender necesidad inmediata
+2. Evaluar perfil silenciosamente (NO revelar perfil de riesgo)
+3. Recomendar opciones específicas y realistas
+4. Advertir riesgos cuando aplique
+5. Sugerir siguiente paso práctico
+
+📝 FORMATO RESPUESTAS (ESTRICTO):
+1. Saludo personalizado (SOLO primera vez o después de pausa larga)
+2. Respuesta directa (2-3 párrafos máximo)
+3. Recomendaciones específicas (máximo 3 opciones con números reales)
+4. Una pregunta de seguimiento
+
+⚠️ REGLAS CRÍTICAS:
+✅ SIEMPRE montos en COP con formato colombiano
+✅ Tasas realistas del mercado colombiano
+✅ Advertencias sobre riesgo en inversiones
+✅ NO repetir información ya dicha en el chat
+✅ NO revelar perfil de riesgo del usuario directamente
+✅ NO prometer rentabilidades garantizadas
+✅ Respuestas CORTAS y al punto
+✅ Si faltan datos (edad, ingresos), pregunta de forma natural
+
+🎯 MANEJO DE DATOS FALTANTES:
+- Si edad NO disponible: NO asumas, pregunta sutilmente: "¿Me podrías compartir tu edad para recomendaciones más precisas?"
+- Si ingresos en $0: pregunta: "¿Cuáles son tus ingresos mensuales aproximados?"
+- Si faltan ambos: prioriza preguntar primero ingresos, luego edad
+- NO inventes datos ni hagas suposiciones
+
+❌ PROHIBIDO:
+❌ Respuestas largas y redundantes
+❌ Repetir lo mismo de mensajes anteriores
+❌ Saludos en cada mensaje (solo al inicio)
+❌ "Tu perfil de riesgo es X" (NO revelar)
+❌ Información genérica sin números concretos
+❌ Asumir datos que no están disponibles
+
+💡 EJEMPLOS BUENOS:
+✅ "Con tus $1.800.000 mensuales y 24 años, te sugiero: CDT 90 días en Bancolombia 10.2% EA (mínimo $500K). ¿Cuánto podrías apartar mensualmente?"
+✅ "Para darte mejores recomendaciones, ¿me compartes tu edad y tus ingresos mensuales aproximados?"
+✅ "Veo que tienes nivel Básico en Barranquilla. Para sugerirte opciones específicas, ¿cuáles son tus ingresos mensuales?"
+
+❌ EJEMPLOS MALOS:
+❌ "Como persona de mediana edad..." (asumiendo edad desconocida)
+❌ "Con tus ingresos estándar..." (inventando datos)
+❌ "Basándome en tu edad de 30 años..." (cuando no está disponible)
+
+🎓 RUTA DE APRENDIZAJE (cuando aplique):
+- "Para profundizar: [enlace específico]"
+- "Bancolombia tiene tutorial gratuito sobre..."
+- "La Superfinanciera explica esto en..."
+
+RECUERDA: 
+1. Lee el historial del chat, NO repitas información ya compartida
+2. Si faltan datos críticos (edad/ingresos), pregúntalos de forma natural
+3. NUNCA asumas o inventes información del usuario
+4. Sé directo, específico y conciso`;
+
+      // Construir mensajes
+      const messages = [
+        { role: 'system', content: systemPrompt }
+      ];
+
+      // Agregar contexto del usuario
+      if (fullContext.trim()) {
+        messages.push({
+          role: 'system',
+          content: `Contexto del usuario (usa esta info, NO la repitas):\n${fullContext}`
+        });
+      }
+
+      // Obtener historial almacenado si no se proporciona
+      let effectiveHistory = conversationHistory;
+      if ((!effectiveHistory || effectiveHistory.length === 0) && userId && this.conversationHistory.has(userId)) {
+        effectiveHistory = this.conversationHistory.get(userId);
+      }
+
+      // Agregar historial previo (últimas 8 mensajes = 4 intercambios)
+      if (effectiveHistory && effectiveHistory.length > 0) {
+        const recentHistory = effectiveHistory.slice(-8);
+        messages.push(...recentHistory);
+        console.log(`📚 Using ${recentHistory.length} messages from history`);
+      }
+
+      // Agregar mensaje actual del usuario
+      messages.push({
+        role: 'user',
+        content: prompt
+      });
+
+      console.log(`📨 Sending ${messages.length} messages to Groq`);
       
       const response = await fetch(GROQ_API_URL, {
         method: 'POST',
@@ -333,13 +483,12 @@ Adapta tus respuestas al perfil específico del usuario (edad, ingresos, toleran
         },
         body: JSON.stringify({
           model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
+          messages: messages,
           temperature: 0.7,
-          max_tokens: 2048,
-          top_p: 0.9
+          max_tokens: 800,
+          top_p: 0.85,
+          frequency_penalty: 0.5,
+          presence_penalty: 0.3
         })
       });
 
@@ -351,10 +500,27 @@ Adapta tus respuestas al perfil específico del usuario (edad, ingresos, toleran
       const data = await response.json();
       const generatedText = data.choices?.[0]?.message?.content || 'No se pudo generar respuesta';
 
+      // Almacenar en historial si hay userId
+      if (userId) {
+        if (!this.conversationHistory.has(userId)) {
+          this.conversationHistory.set(userId, []);
+        }
+        const history = this.conversationHistory.get(userId);
+        history.push(
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: generatedText }
+        );
+        if (history.length > 8) {
+          history.splice(0, history.length - 8);
+        }
+        console.log(`💾 Stored conversation for user ${userId} (${history.length} messages)`);
+      }
+
       return {
         success: true,
         data: generatedText.trim(),
-        message: 'Analysis completed successfully with Groq AI'
+        message: 'Analysis completed successfully with Groq AI',
+        conversationHistory: userId ? this.conversationHistory.get(userId) : effectiveHistory
       };
     } catch (error) {
       console.error('Groq API error:', error);
@@ -364,116 +530,114 @@ Adapta tus respuestas al perfil específico del usuario (edad, ingresos, toleran
   }
 
   generateFallbackResponse(prompt, context, userProfile) {
-    console.log('📝 Generando respuesta simulada con datos locales');
+    console.log('📝 Generando respuesta simulada');
     
-    let edad = 30;
-    let ingresos = 2000000;
-    let riesgo = "básico";
-    let ciudad = "Bogotá";
+    let nombre = "Usuario";
+    let ingresos = null;
+    let edad = null;
+    let ciudad = "Colombia";
     
     if (userProfile) {
-      edad = userProfile.age || 30;
-      ingresos = userProfile.income || 2000000;
-      riesgo = userProfile.risk_tolerance || "básico";
-      ciudad = userProfile.ciudad || "Bogotá";
+      nombre = userProfile.nombres || "Usuario";
+      ingresos = parseInt(userProfile.income) || null;
+      edad = userProfile.age;
+      ciudad = userProfile.ciudad || "Colombia";
     }
-
-    const respuestas = {
-      inversion_general: `Basado en tu perfil (${edad} años, $${ingresos.toLocaleString()} COP/mes, riesgo ${riesgo}):
-
-1. CDT (60%): Rendimiento 8-11% anual, bajo riesgo
-2. Fondos conservadores (30%): Balance renta fija/variable
-3. Ahorro de alta rentabilidad (10%): Liquidez para emergencias`,
-
-      ahorro: `Para ${ciudad} con $${ingresos.toLocaleString()} COP/mes:
-
-1. Fondo emergencia: 3-6 meses de gastos
-2. Ahorro automático: 20% de ingresos
-3. Podrías acumular $${(ingresos * 0.2 * 12).toLocaleString()} COP/año`,
-
-      analisis: `Perfil: ${edad} años, $${ingresos.toLocaleString()} COP, riesgo ${riesgo}
-
-Recomendación: Inversiones seguras como CDTs y fondos conservadores`
-    };
 
     const promptLower = prompt.toLowerCase();
     let respuesta;
-    
-    if (promptLower.includes("invert") || promptLower.includes("recomend")) {
-      respuesta = respuestas.inversion_general;
-    } else if (promptLower.includes("ahorr")) {
-      respuesta = respuestas.ahorro;
+
+    // Verificar si faltan datos críticos
+    const faltanDatos = !ingresos || ingresos === 0 || edad === null || edad === undefined;
+
+    if (faltanDatos && (promptLower.includes("informacion") || promptLower.includes("tengo") || promptLower.includes("sobre mi"))) {
+      respuesta = `Hola ${nombre}! 👋
+
+Tengo la siguiente información:
+${edad !== null && edad !== undefined ? `✅ Edad: ${edad} años` : '❌ Edad: No disponible'}
+${ingresos && ingresos > 0 ? `✅ Ingresos: $${ingresos.toLocaleString('es-CO')} COP/mes` : '❌ Ingresos: No disponible'}
+✅ Ciudad: ${ciudad}
+
+Para darte recomendaciones personalizadas, necesito ${!edad ? 'tu edad' : ''}${!edad && (!ingresos || ingresos === 0) ? ' y ' : ''}${!ingresos || ingresos === 0 ? 'tus ingresos mensuales' : ''}. ¿Me los compartes? 📊`;
+
+    } else if (faltanDatos) {
+      respuesta = `Hola ${nombre}! 👋
+
+Para ayudarte mejor, necesito conocer:
+${!edad || edad === null ? '• Tu edad' : ''}
+${!ingresos || ingresos === 0 ? '• Tus ingresos mensuales aproximados' : ''}
+
+¿Me los podrías compartir? Así te daré recomendaciones más precisas 🎯`;
+
+    } else if (promptLower.includes("cdt")) {
+      respuesta = `¡Excelente ${nombre}! 💰
+
+**Opciones CDT en ${ciudad}:**
+1. 90 días - 9.8% EA (mín. $500K)
+2. 180 días - 10.5% EA (mín. $1M)
+3. 360 días - 11.2% EA
+
+Con $${ingresos.toLocaleString('es-CO')} COP/mes, podrías invertir $${Math.round(ingresos * 0.2).toLocaleString('es-CO')}-${Math.round(ingresos * 0.3).toLocaleString('es-CO')}K mensualmente.
+
+¿Qué plazo te interesa?`;
+      
     } else {
-      respuesta = respuestas.analisis;
+      respuesta = `Hola ${nombre}! 👋
+
+Perfil confirmado:
+📍 ${ciudad}
+${edad ? `🎂 ${edad} años` : ''}
+💰 $${ingresos ? ingresos.toLocaleString('es-CO') : '0'} COP/mes
+
+¿En qué puedo asesorarte hoy? 🎯`;
     }
 
     return {
       success: true,
       data: respuesta,
-      message: 'Analysis completed with fallback response',
-      usingFallback: true
+      message: 'Fallback response',
+      usingFallback: true,
+      conversationHistory: []
     };
   }
 
-  async analyzeInvestmentProfile(args) {
-    const { userId, investmentAmount } = args;
-
+  clearConversationHistory(args) {
+    const { userId } = args || {};
     if (!userId) {
-      throw new Error('UserId is required for investment profile analysis');
+      throw new Error('userId is required');
     }
 
-    try {
-      const profileResult = await this.getUserProfile({ userId });
+    if (this.conversationHistory.has(userId)) {
+      this.conversationHistory.delete(userId);
+      return { 
+        success: true, 
+        message: `Historial borrado para usuario ${userId}` 
+      };
+    }
+    return { 
+      success: false, 
+      message: `No hay historial para usuario ${userId}` 
+    };
+  }
 
-      if (!profileResult.success || !profileResult.data) {
-        return {
-          success: false,
-          message: 'User profile not found. Please complete your profile first.',
-          data: null
-        };
-      }
+  getConversationHistory(args) {
+    const { userId } = args || {};
+    if (!userId) {
+      throw new Error('userId is required');
+    }
 
-      const profile = profileResult.data;
-
-      const optionsResult = await this.getInvestmentOptions({
-        riskLevel: profile.risk_tolerance || 'medium',
-        amount: investmentAmount || 0
-      });
-
-      const context = `
-        User Profile:
-        - Age: ${profile.age}
-        - Income: $${profile.income}
-        - Risk Tolerance: ${profile.risk_tolerance}
-        - Investment Amount: $${investmentAmount}
-        
-        Available Investment Options: ${JSON.stringify(optionsResult.data)}
-      `;
-
-      const aiAnalysis = await this.analyzeWithGroq({
-        prompt: `Based on this user's profile and available investment options, provide specific investment recommendations.`,
-        context: context
-      });
-
+    if (this.conversationHistory.has(userId)) {
       return {
         success: true,
-        data: {
-          userProfile: profile,
-          investmentOptions: optionsResult.data,
-          aiRecommendations: aiAnalysis.data,
-          analysis: {
-            totalAmount: investmentAmount,
-            riskLevel: profile.risk_tolerance,
-            suitableOptions: optionsResult.data.length
-          }
-        },
-        message: 'Complete investment profile analysis completed successfully'
+        data: this.conversationHistory.get(userId),
+        message: `${this.conversationHistory.get(userId).length} mensajes`
       };
-
-    } catch (error) {
-      console.error('Error in analyzeInvestmentProfile:', error);
-      throw new Error(`Investment profile analysis error: ${error.message}`);
     }
+    return { 
+      success: false, 
+      data: [], 
+      message: 'No hay historial' 
+    };
   }
 
   async processAgentRequest(request) {
