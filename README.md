@@ -192,18 +192,18 @@ El servidor MCP proporciona **10 herramientas especializadas**:
 ---
 
 
-## 🔄 Flujo de Solicitud de Asesoría
+##  Flujo de Solicitud de Asesoría
 
 El sistema procesa las solicitudes de asesoría financiera en 6 pasos:
 
 | Paso | Acción | Descripción |
 |------|--------|-------------|
-| 1️⃣ | **Solicitud de asesoría** | Usuario envía consulta desde el chat |
-| 2️⃣ | **Recuperación de perfil** | Sistema obtiene datos del usuario (edad, ingresos, ciudad) |
-| 3️⃣ | **Búsqueda de opciones** | Consulta instrumentos financieros compatibles en BD |
-| 4️⃣ | **Análisis con Groq AI** | Envía contexto completo al LLM para procesamiento |
-| 5️⃣ | **Generación de recomendaciones** | IA genera consejos personalizados y específicos |
-| 6️⃣ | **Entrega al usuario** | Respuesta formateada se muestra en el chat |
+| 1 | **Solicitud de asesoría** | Usuario envía consulta desde el chat |
+| 2 | **Recuperación de perfil** | Sistema obtiene datos del usuario (edad, ingresos, ciudad) |
+| 3 | **Búsqueda de opciones** | Consulta instrumentos financieros compatibles en BD |
+| 4 | **Análisis con Groq AI** | Envía contexto completo al LLM para procesamiento |
+| 5 | **Generación de recomendaciones** | IA genera consejos personalizados y específicos |
+| 6 | **Entrega al usuario** | Respuesta formateada se muestra en el chat |
 
 ### Flujo Técnico Detallado
 
