@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { testConnection } = require('./config/database');
 require('dotenv').config();
 
 const app = express();
@@ -10,72 +9,65 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Test database connection on startup
-testConnection().catch(console.error);
+// Import routes
+const authRoutes = require('./routes/authRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 
-// Routes
+// Use routes
+app.use('/api', authRoutes);
+app.use('/api', chatRoutes);
+app.use('/api', profileRoutes);
+
+// Health check
 app.get('/health', (req, res) => {
   res.json({ 
-    status: 'OK', 
-    message: 'SENASOFT Backend with MCP and Groq integration',
-    timestamp: new Date().toISOString()
+    status: 'ok', 
+    message: 'SENASOFT Backend is running',
+    timestamp: new Date().toISOString() 
   });
 });
 
-// Test MCP endpoint
-app.get('/api/test-mcp', async (req, res) => {
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'SENASOFT Backend API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth/login',
+      chat: '/api/chat',
+      profile: '/api/profile/:userId'
+    }
+  });
+});
+
+// Initialize MCP Service
+const mcpService = require('./services/mcpService');
+
+// Función async para inicializar correctamente
+async function startServer() {
   try {
-    const mcpService = require('./services/mcpService');
-    const tools = mcpService.getAvailableTools();
-    
-    res.json({
-      success: true,
-      message: 'MCP Service is working',
-      availableTools: tools,
-      timestamp: new Date().toISOString()
+    // Esperar a que el MCP Service se inicialice
+    console.log('⏳ Initializing MCP Service...');
+    await mcpService.ensureInitialized();
+    console.log('✅ MCP Service ready');
+
+    // Start server después de que el MCP esté listo
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`💾 Database: ${process.env.DB_NAME || 'Not configured'}`);
+      console.log(`🤖 Groq API: ${process.env.GROQ_API_KEY ? 'Configured' : 'Not configured'}`);
+      console.log(`✅ Backend with MCP ready to handle requests`);
+      console.log(`🌐 Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
-    res.status(500).json({
-      error: 'MCP Service error',
-      message: error.message
-    });
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
   }
-});
-
-// Import routes after middleware setup
-try {
-  const chatRoutes = require('./routes/chat');
-  const profileRoutes = require('./routes/profile');
-  
-  // API Routes
-  app.use('/api/chat', chatRoutes);
-  app.use('/api/profile', profileRoutes);
-} catch (error) {
-  console.log('⚠️  Routes not loaded yet, creating them...');
 }
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Something went wrong!',
-    message: err.message
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.originalUrl
-  });
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`💾 Database: ${process.env.DB_NAME}`);
-  console.log(`🤖 Groq API: ${process.env.GROQ_API_KEY ? 'Configured' : 'Not configured'}`);
-});
+// Iniciar el servidor
+startServer();
 
 module.exports = app;

@@ -5,10 +5,30 @@ class ChatController {
     try {
       const { message, userId, context, conversationHistory = [] } = req.body;
 
+      console.log('📨 Incoming chat request:', {
+        message: message?.substring(0, 50),
+        userId,
+        hasContext: !!context,
+        historyLength: conversationHistory.length
+      });
+
       if (!message) {
         return res.status(400).json({
           success: false,
           error: 'El mensaje es requerido'
+        });
+      }
+
+      // Verificar que el MCP Service esté inicializado
+      try {
+        await mcpService.ensureInitialized();
+        console.log('✅ MCP Service confirmed initialized');
+      } catch (error) {
+        console.error('❌ MCP Service not initialized:', error);
+        return res.status(503).json({
+          success: false,
+          error: 'El servicio de IA no está disponible temporalmente. Por favor intenta de nuevo.',
+          message: error.message
         });
       }
 
@@ -18,15 +38,17 @@ class ChatController {
         try {
           const profileResult = await mcpService.getUserProfile(userId);
           userProfile = profileResult.data;
-          console.log(`✅ Perfil cargado para usuario ${userId}: ${userProfile.nombres}`);
+          console.log(`✅ Perfil cargado: ${userProfile?.nombres || 'N/A'}`);
         } catch (error) {
-          console.log('⚠️ No se encontró perfil de usuario:', error.message);
+          console.log('⚠️ No se encontró perfil:', error.message);
         }
       }
 
       // Contexto mínimo (el sistema ya tiene el perfil)
       const enhancedContext = context || '';
 
+      console.log('🤖 Calling analyzeWithGroq...');
+      
       // Analizar con Groq usando historial conversacional
       const analysis = await mcpService.analyzeWithGroq(
         message, 
@@ -35,6 +57,12 @@ class ChatController {
         userId,
         conversationHistory
       );
+
+      console.log('✅ Analysis completed:', {
+        success: analysis.success,
+        responseLength: analysis.data?.length,
+        historyLength: analysis.conversationHistory?.length
+      });
 
       res.json({
         success: true,
@@ -50,10 +78,12 @@ class ChatController {
 
     } catch (error) {
       console.error('❌ Error en el chat:', error);
+      console.error('Stack trace:', error.stack);
       res.status(500).json({
         success: false,
-        error: 'Error procesando el mensaje',
-        message: error.message
+        error: 'Error procesando el mensaje. Por favor intenta nuevamente.',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }

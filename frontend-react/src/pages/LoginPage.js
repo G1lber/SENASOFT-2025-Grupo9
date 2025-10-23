@@ -44,14 +44,14 @@ const LoginPage = () => {
   return (
     <div className="login-container">
       <div className="login-card">
-        <h2>🏦 Finanzas Pa' Ti</h2>
+        <h2>Finanzas Pa' Ti</h2>
         <p className="subtitle">Asesor Financiero Inteligente</p>
         
         {error && <div className="error-message">{error}</div>}
         
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label htmlFor="email">📧 Email</label>
+            <label htmlFor="email">Email</label>
             <input
               type="email"
               id="email"
@@ -63,7 +63,7 @@ const LoginPage = () => {
           </div>
           
           <div className="input-group">
-            <label htmlFor="cedula">🆔 Cédula</label>
+            <label htmlFor="cedula">Cédula</label>
             <input
               type="text"
               id="cedula"

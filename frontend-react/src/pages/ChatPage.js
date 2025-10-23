@@ -9,6 +9,7 @@ const ChatPage = () => {
   const navigate = useNavigate();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState([]); // Nuevo estado
   const [loading, setLoading] = useState(false);
   
   const messagesEndRef = useRef(null);
@@ -46,26 +47,43 @@ const ChatPage = () => {
     };
     
     setMessages(prev => [...prev, newMessage]);
+    const currentMessage = message;
     setMessage('');
     setLoading(true);
     
     try {
-      const response = await api.sendMessage(message, user.id_usuario);
+      console.log('📤 Sending message to API...');
+      console.log('User ID:', user.id_usuario);
+      console.log('History length:', conversationHistory.length);
+      
+      // Enviar con historial conversacional
+      const response = await api.sendMessage(currentMessage, user.id_usuario, conversationHistory);
+      
+      console.log('📥 Response received:', response);
       
       if (response.success) {
-        setMessages(prev => [...prev, {
+        const aiMessage = {
           id: `ai-${Date.now()}`,
           text: response.response,
           fromUser: false,
           timestamp: new Date()
-        }]);
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Actualizar historial conversacional
+        if (response.conversationHistory) {
+          console.log('💾 Updating conversation history:', response.conversationHistory.length, 'messages');
+          setConversationHistory(response.conversationHistory);
+        }
       } else {
         throw new Error(response.error || 'Error procesando mensaje');
       }
     } catch (error) {
+      console.error('❌ Error in sendMessage:', error);
       setMessages(prev => [...prev, {
         id: `error-${Date.now()}`,
-        text: "Lo siento, ha ocurrido un error. Por favor intenta nuevamente.",
+        text: `Lo siento, ha ocurrido un error: ${error.message}. Por favor intenta nuevamente.`,
         fromUser: false,
         isError: true,
         timestamp: new Date()
