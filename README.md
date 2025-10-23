@@ -1,14 +1,14 @@
-# 🏦 SENASOFT 2025 - Sistema de Asesoría Financiera con IA
+#  SENASOFT 2025 - Sistema de Asesoría Financiera con IA
 
 Sistema inteligente de asesoría financiera para el mercado colombiano que utiliza IA (Groq/Llama 3) para proporcionar recomendaciones de inversión personalizadas.
 
-## 📋 Descripción
+##  Descripción
 
 Plataforma de asesoría financiera que combina inteligencia artificial con datos financieros reales del mercado colombiano. El sistema analiza el perfil del usuario (edad, ingresos, tolerancia al riesgo) y proporciona recomendaciones personalizadas de inversión en instrumentos financieros colombianos (CDTs, fondos, cuentas de ahorro, etc.).
 
 ---
 
-## 🚀 Tecnologías Utilizadas
+##  Tecnologías Utilizadas
 
 ### Backend
 - **Node.js** - Runtime de JavaScript
@@ -28,7 +28,7 @@ Plataforma de asesoría financiera que combina inteligencia artificial con datos
 
 ---
 
-## 📁 Estructura del Proyecto
+##  Estructura del Proyecto
 
 ```
 SENASOFT-2025-Grupo9/
@@ -113,7 +113,8 @@ SENASOFT-2025-Grupo9/
             └── LoginPage.css
 ---
 
-## 📦 Instalación y Ejecución
+
+## Instalación y Ejecución
 
 1. Clonar el repositorio
    ```bash
@@ -137,7 +138,7 @@ SENASOFT-2025-Grupo9/
 
 ---
 
-## 📚 Uso
+##  Uso
 
 - Acceder a la aplicación a través de `https://senasoft-2025-grupo9.vercel.app/chat`
 - Iniciar sesión con credenciales existentes
@@ -147,7 +148,7 @@ SENASOFT-2025-Grupo9/
 
 ---
 
-## 🧠 Arquitectura MCP (Model Context Protocol)
+##  Arquitectura MCP (Model Context Protocol)
 
 El sistema está construido alrededor de un servidor MCP que proporciona herramientas inteligentes mediante un protocolo estructurado.
 
@@ -171,7 +172,7 @@ El sistema está construido alrededor de un servidor MCP que proporciona herrami
 
 ---
 
-## 🛠️ Herramientas Disponibles
+##  Herramientas Disponibles
 
 El servidor MCP proporciona **10 herramientas especializadas**:
 
@@ -190,39 +191,39 @@ El servidor MCP proporciona **10 herramientas especializadas**:
 
 ---
 
+
 ## 🔄 Flujo de Solicitud de Asesoría
 
-El flujo de solicitud de asesoría financiera sigue estos pasos:
+El sistema procesa las solicitudes de asesoría financiera en 6 pasos:
 
-┌─────────────────────┐
-│ 1. Solicitud        │
-│    de asesoría      │
-└──────────┬──────────┘
-           │
-┌──────────▼──────────┐
-│ 2. Recuperación     │
-│    de perfil        │
-└──────────┬──────────┘
-           │
-┌──────────▼──────────┐
-│ 3. Búsqueda de      │
-│    opciones         │
-└──────────┬──────────┘
-           │
-┌──────────▼──────────┐
-│ 4. Análisis con     │
-│    Groq AI          │
-└──────────┬──────────┘
-           │
-┌──────────▼──────────┐
-│ 5. Generación de    │
-│    recomendaciones  │
-└──────────┬──────────┘
-           │
-┌──────────▼──────────┐
-│ 6. Entrega al       │
-│    usuario          │
-└─────────────────────┘
+| Paso | Acción | Descripción |
+|------|--------|-------------|
+| 1️⃣ | **Solicitud de asesoría** | Usuario envía consulta desde el chat |
+| 2️⃣ | **Recuperación de perfil** | Sistema obtiene datos del usuario (edad, ingresos, ciudad) |
+| 3️⃣ | **Búsqueda de opciones** | Consulta instrumentos financieros compatibles en BD |
+| 4️⃣ | **Análisis con Groq AI** | Envía contexto completo al LLM para procesamiento |
+| 5️⃣ | **Generación de recomendaciones** | IA genera consejos personalizados y específicos |
+| 6️⃣ | **Entrega al usuario** | Respuesta formateada se muestra en el chat |
+
+### Flujo Técnico Detallado
+
+```
+Usuario → ChatController → MCPService → MCPServer → Groq API
+   ↓            ↓              ↓            ↓           ↓
+Frontend    Valida       Inicializa   Ejecuta     Genera
+Request     Request      Conexión     Herramientas Respuesta
+   ↓            ↓              ↓            ↓           ↓
+JSON        Obtiene      Llama         - get_user_profile
+Payload     Perfil       Tools         - get_investment_options
+            Usuario                    - analyze_with_groq
+   ↓            ↓              ↓            ↓           ↓
+            Construye    Envía         MySQL      Llama 3.3
+            Contexto     Mensajes      Query      70B Model
+   ↓            ↓              ↓            ↓           ↓
+            Historial    System        Datos      Respuesta
+            Previo       Prompt        Reales     Personalizada
+```
+
 ## Flujo de la peticion
 
 Usuario → Controlador → MCP Service → Groq LLM → Respuesta
@@ -231,7 +232,7 @@ Usuario → Controlador → MCP Service → Groq LLM → Respuesta
 
 ### Configuracion LLM
 
-## 🤖 Configuración de Groq AI
+## Configuración de Groq AI
 
 El sistema utiliza la API de Groq con el modelo **Llama 3.3 70B Versatile** para generar respuestas conversacionales inteligentes.
 
@@ -255,17 +256,17 @@ La solicitud HTTP POST a Groq está optimizada con los siguientes parámetros:
 
 El sistema utiliza un prompt especializado que define a "Santiago", un asesor financiero colombiano con:
 
-- 🎯 **Personalidad**: Cercano, profesional y conciso (máx. 200 palabras)
-- 📚 **Expertise**: Mercado colombiano (CDTs, TES, fondos, BVC)
-- 💼 **Bancos**: Bancolombia, Davivienda, BBVA, Colpatria
-- 📊 **Tasas realistas**: CDT 9-12% EA, Fondos 5-15% (2024-2025)
-- ⚠️ **Validaciones**: No inventa datos faltantes, pregunta naturalmente por edad/ingresos
-# 🧪 Sistema de Pruebas SENASOFT 2025
+-  **Personalidad**: Cercano, profesional y conciso (máx. 200 palabras)
+-  **Expertise**: Mercado colombiano (CDTs, TES, fondos, BVC)
+-  **Bancos**: Bancolombia, Davivienda, BBVA, Colpatria
+-  **Tasas realistas**: CDT 9-12% EA, Fondos 5-15% (2024-2025)
+-  **Validaciones**: No inventa datos faltantes, pregunta naturalmente por edad/ingresos
+# Sistema de Pruebas SENASOFT 2025
 
-## 📋 Descripción
+##  Descripción
 Sistema automatizado de pruebas para el Asesor de Inversiones con IA desarrollado para SENASOFT 2025.
 
-## 🚀 Cómo Ejecutar las Pruebas
+## Cómo Ejecutar las Pruebas
 
 ### Opción 1: Script de Node.js (Recomendado)
 ```bash
@@ -300,34 +301,34 @@ node test-sistema.js --quick
 node test-sistema.js --help
 ```
 
-## 📊 Qué Prueba el Sistema
+##  Qué Prueba el Sistema
 
-### 1️⃣ Salud del Servidor
-- ✅ Verificar que el servidor Express esté corriendo
-- ✅ Confirmar conexión a la base de datos
-- ✅ Validar configuración de APIs
+### Salud del Servidor
+-  Verificar que el servidor Express esté corriendo
+-  Confirmar conexión a la base de datos
+-  Validar configuración de APIs
 
-### 2️⃣ Servicio MCP
-- ✅ Verificar conectividad con el servidor MCP
-- ✅ Listar herramientas disponibles
-- ✅ Confirmar integración con Groq AI
+### 2 Servicio MCP
+-  Verificar conectividad con el servidor MCP
+-  Listar herramientas disponibles
+-  Confirmar integración con Groq AI
 
-### 3️⃣ Gestión de Perfiles
-- ✅ Guardar perfil de usuario en base de datos
-- ✅ Recuperar perfil de usuario
-- ✅ Análisis de perfil con IA
+### 3 Gestión de Perfiles
+-  Guardar perfil de usuario en base de datos
+-  Recuperar perfil de usuario
+-  Análisis de perfil con IA
 
-### 4️⃣ Chat con IA
-- ✅ Respuestas a preguntas sobre inversiones
-- ✅ Integración de contexto de usuario
-- ✅ Análisis personalizado con Groq
+### 4 Chat con IA
+-  Respuestas a preguntas sobre inversiones
+-  Integración de contexto de usuario
+-  Análisis personalizado con Groq
 
-### 5️⃣ Consejos de Inversión
-- ✅ Recomendaciones basadas en perfil
-- ✅ Análisis por montos de inversión
-- ✅ Sugerencias por nivel de riesgo
+### 5 Consejos de Inversión
+-  Recomendaciones basadas en perfil
+-  Análisis por montos de inversión
+-  Sugerencias por nivel de riesgo
 
-## 🔧 Requisitos Previos
+##  Requisitos Previos
 
 1. **Servidor Principal**
    ```bash
@@ -347,19 +348,19 @@ node test-sistema.js --help
 4. **API Keys**
    - Groq API Key configurada en `.env`
 
-## 📈 Interpretación de Resultados
+##  Interpretación de Resultados
 
-### ✅ Éxito
+###  Éxito
 - **Verde**: Prueba pasó correctamente
 - **Código 200**: Respuesta exitosa del servidor
 - **JSON válido**: Datos estructurados correctamente
 
-### ❌ Error
+###  Error
 - **Rojo**: Prueba falló
 - **Código 4xx/5xx**: Error del cliente o servidor
 - **Mensaje de error**: Descripción del problema
 
-## 🎯 Casos de Prueba
+##  Casos de Prueba
 
 ### Usuario de Prueba
 ```json
@@ -383,23 +384,23 @@ node test-sistema.js --help
 - **$15,000** con riesgo medio  
 - **$50,000** con riesgo alto
 
-## 🐛 Solución de Problemas
+##  Solución de Problemas
 
 ### Error de Conexión
 ```
-❌ ERROR: Error de conexión
+ERROR: Error de conexión
 ```
 **Solución**: Verificar que los servidores estén corriendo
 
 ### Error de Base de Datos
 ```
-❌ ERROR: Database error
+ ERROR: Database error
 ```
 **Solución**: Verificar MySQL y configuración en `.env`
 
 ### Error de API Groq
 ```
-❌ ERROR: Groq API error
+ ERROR: Groq API error
 ```
 **Solución**: Verificar API Key en `.env`
 
