@@ -4,7 +4,7 @@ Sistema inteligente de asesoría financiera para el mercado colombiano que utili
 
 ##  Descripción
 
-Plataforma de asesoría financiera que combina inteligencia artificial con datos financieros reales del mercado colombiano. El sistema analiza el perfil del usuario (edad, ingresos, tolerancia al riesgo) y proporciona recomendaciones personalizadas de inversión en instrumentos financieros colombianos (CDTs, fondos, cuentas de ahorro, etc.).
+Plataforma de asesoría financiera que combina inteligencia artificial con datos financieros simulados del mercado colombiano. El sistema analiza el perfil del usuario (edad, ingresos, tolerancia al riesgo) y proporciona recomendaciones personalizadas de inversión en instrumentos financieros colombianos (CDTs, fondos, cuentas de ahorro, etc.).
 
 ---
 
